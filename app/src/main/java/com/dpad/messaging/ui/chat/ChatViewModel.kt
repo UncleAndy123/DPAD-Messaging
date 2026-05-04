@@ -177,15 +177,33 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                         mimeType = cr.getType(imageUri) ?: "image/jpeg"
                         cr.openInputStream(imageUri)?.use { stream -> imageBytes = stream.readBytes() }
                     }
-                    sender.sendMms(addresses, text, imageBytes, mimeType)
-                    // MMS provider update may be delayed; schedule a reload after a short wait
-                    // so the sent bubble resolves. ContentObserver will also fire when it arrives.
-                    delay(3000)
-                    val tid = threadId
-                    if (tid > 0) {
-                        val fetched = repo.getMessages(tid, messageLimit)
-                        _messages.value = fetched
-                        updateHasMore(fetched.size)
+
+                    try {
+                        // Try MMS first (group or attachment)
+                        sender.sendMms(addresses, text, imageBytes, mimeType)
+                        // MMS provider update may be delayed; schedule a reload after a short wait
+                        delay(3000)
+                        val tid = threadId
+                        if (tid > 0) {
+                            val fetched = repo.getMessages(tid, messageLimit)
+                            _messages.value = fetched
+                            updateHasMore(fetched.size)
+                        }
+                    } catch (e: Exception) {
+                        // If there's no attachment, fallback to sending individual SMS to each recipient.
+                        if (imageBytes == null) {
+                            _sendError.value = "MMS failed, falling back to individual SMS"
+                            addresses.forEach { addr ->
+                                try {
+                                    sender.sendSms(addr, text)
+                                } catch (_: Exception) {
+                                    // ignore individual send failures here — user sees snackbar
+                                }
+                            }
+                        } else {
+                            // Attachment present and MMS failed — surface error
+                            throw e
+                        }
                     }
                 } else {
                     // sendSms writes to the provider and returns the inserted Uri

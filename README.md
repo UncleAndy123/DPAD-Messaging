@@ -16,12 +16,14 @@ Highlights
 - Configurable theme and accent color
 
 Screenshots
-- Main: ![Conversations](screenshots/conversations.png)
-- D-pad focus: ![3-dot focus](screenshots/3dot_focus.png)
-- Thread options: ![Options](screenshots/options_dialog.png)
-- Chat view: ![Chat](screenshots/chat.png)
-- New message: ![New message](screenshots/newmessage.png)
-- Settings: ![Settings](screenshots/settings.png)
+
+| Main | D-pad focus |
+|---:|:---|
+| ![Conversations](screenshots/conversations.png) <br/> *Conversations* | ![3-dot focus](screenshots/3dot_focus.png) <br/> *Three-dot focus* |
+| Thread options | Chat view |
+| ![Options](screenshots/options_dialog.png) <br/> *Thread options* | ![Chat](screenshots/chat.png) <br/> *Chat view* |
+| New message | Settings |
+| ![New message](screenshots/newmessage.png) <br/> *New message* | ![Settings](screenshots/settings.png) <br/> *Settings* |
 
 Getting started (developer)
 1. Build debug APK: `./gradlew :app:assembleDebug`

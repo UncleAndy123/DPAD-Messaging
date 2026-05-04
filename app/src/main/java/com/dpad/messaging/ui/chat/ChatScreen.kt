@@ -25,9 +25,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -36,6 +42,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import com.dpad.messaging.data.model.MsgType
 import com.dpad.messaging.data.model.SmsMessage
 import com.dpad.messaging.util.dpadFocusableItem
@@ -205,6 +212,7 @@ fun ChatScreen(
                             Icon(Icons.Default.AddReaction, "Emoji", modifier = Modifier.size(18.dp))
                         }
 
+                        val focusManager = LocalFocusManager.current
                         OutlinedTextField(
                             value = inputText,
                             onValueChange = { newText ->
@@ -218,7 +226,34 @@ fun ChatScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(horizontal = 2.dp)
-                                .focusRequester(inputFocus),
+                                .focusRequester(inputFocus)
+                                .onPreviewKeyEvent { event ->
+                                    when {
+                                        // Center / Enter key → send (most natural dumbphone action)
+                                        event.type == KeyEventType.KeyUp &&
+                                        (event.key == Key.DirectionCenter || event.key == Key.Enter) -> {
+                                            if (inputText.isNotBlank() || selectedImageUri != null) {
+                                                viewModel.send(inputText, selectedImageUri)
+                                                inputText = ""
+                                                selectedImageUri = null
+                                            }
+                                            true
+                                        }
+                                        // D-pad Down → escape to Send button
+                                        event.type == KeyEventType.KeyUp &&
+                                        event.key == Key.DirectionDown -> {
+                                            sendFocus.requestFocus()
+                                            true
+                                        }
+                                        // D-pad Up → escape upward to message list
+                                        event.type == KeyEventType.KeyUp &&
+                                        event.key == Key.DirectionUp -> {
+                                            focusManager.moveFocus(FocusDirection.Up)
+                                            true
+                                        }
+                                        else -> false
+                                    }
+                                },
                             shape = RoundedCornerShape(20.dp),
                         )
 

@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dpad.messaging.data.model.SmsThread
 import com.dpad.messaging.util.dpadFocusableItem
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -56,10 +57,11 @@ fun ConversationsScreen(
     LaunchedEffect(Unit) { viewModel.refreshDrafts() }
 
     var showArchived by remember { mutableStateOf(false) }
-    // FAB focus requester — used as a list item at the bottom so D-pad can reach it
     val fabFocus = remember { FocusRequester() }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -69,12 +71,24 @@ fun ConversationsScreen(
                     )
                 },
                 actions = {
+                    val archiveFocus = remember { FocusRequester() }
+                    val settingsFocus = remember { FocusRequester() }
                     IconButton(
                         onClick = {
                             showArchived = !showArchived
                             viewModel.setShowArchived(showArchived)
                         },
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier
+                            .size(40.dp)
+                            .focusRequester(archiveFocus)
+                            .dpadFocusableItem(
+                                onClick = {
+                                    showArchived = !showArchived
+                                    viewModel.setShowArchived(showArchived)
+                                },
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                                borderWidth = 3.dp
+                            )
                     ) {
                         Icon(
                             Icons.Default.Archive,
@@ -84,7 +98,14 @@ fun ConversationsScreen(
                     }
                     IconButton(
                         onClick = onSettings,
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier
+                            .size(40.dp)
+                            .focusRequester(settingsFocus)
+                            .dpadFocusableItem(
+                                onClick = onSettings,
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                                borderWidth = 3.dp
+                            )
                     ) {
                         Icon(Icons.Default.Settings, "Settings", modifier = Modifier.size(20.dp))
                     }
@@ -133,6 +154,7 @@ fun ConversationsScreen(
             else -> {
                 val listState = rememberLazyListState()
                 val focusRequesters = remember(threads.size) { List(threads.size) { FocusRequester() } }
+                val scope = rememberCoroutineScope()
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize().padding(padding)
@@ -145,7 +167,20 @@ fun ConversationsScreen(
                             isFirst = index == 0,
                             onClick = { onOpenChat(thread.threadId, thread.address, thread.contactName) },
                             onPin = { viewModel.togglePin(thread.threadId) },
-                            onArchive = { viewModel.toggleArchive(thread.threadId) },
+                            onArchive = {
+                                viewModel.toggleArchive(thread.threadId)
+                                val msg = if (thread.isArchived) "Conversation unarchived" else "Conversation archived"
+                                scope.launch {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = msg,
+                                        actionLabel = "Undo",
+                                        duration = SnackbarDuration.Short
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) {
+                                        viewModel.toggleArchive(thread.threadId)
+                                    }
+                                }
+                            },
                             onMute = { viewModel.toggleMute(thread.threadId) },
                             onBlock = { viewModel.toggleBlock(thread.threadId) },
                             onDelete = { viewModel.deleteThread(thread.threadId) }

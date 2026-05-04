@@ -217,13 +217,15 @@ class SmsRepository(
     }
 
     suspend fun deleteThread(threadId: Long) = withContext(Dispatchers.IO) {
+        if (threadId <= 0) return@withContext
+
         try {
-            // Delete SMS rows
-            cr.delete(Telephony.Sms.CONTENT_URI, "${Telephony.Sms.THREAD_ID} = ?", arrayOf(threadId.toString()))
-        } catch (_: Exception) {}
-        try {
-            // Delete MMS rows (parts and headers)
-            cr.delete(Telephony.Mms.CONTENT_URI, "${Telephony.Mms.THREAD_ID} = ?", arrayOf(threadId.toString()))
+            // Use the threads URI to delete an entire conversation. This is the
+            // provider-backed way to remove all messages for a thread and is
+            // safer than issuing deletes against the global SMS/MMS tables which
+            // may behave inconsistently on some devices/providers.
+            val threadUri = Uri.withAppendedPath(Telephony.Threads.CONTENT_URI, threadId.toString())
+            cr.delete(threadUri, null, null)
         } catch (_: Exception) {}
 
         // Remove any metadata

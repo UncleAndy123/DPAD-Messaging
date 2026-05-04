@@ -55,7 +55,6 @@ fun ChatScreen(
     val isSending by viewModel.isSending.collectAsState()
     val hasMore by viewModel.hasMore.collectAsState()
     val draftText by viewModel.draftText.collectAsState()
-    // inputText is local state seeded once from draftText after init
     var inputText by remember { mutableStateOf("") }
     var draftSeeded by remember { mutableStateOf(false) }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
@@ -70,21 +69,28 @@ fun ChatScreen(
     )
 
     LaunchedEffect(threadId) { viewModel.init(threadId, address) }
-    // Seed the input field once from the restored draft (fires when draftText becomes non-empty
-    // after init loads it from the DB, or stays "" if no draft exists)
+
+    // Seed input once from saved draft
     LaunchedEffect(draftText) {
         if (!draftSeeded) {
             inputText = draftText
             draftSeeded = true
         }
     }
+
+    // Scroll to bottom when new messages arrive
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
     }
 
+    // DO NOT auto-focus the input field — it summons the soft keyboard and blocks the screen.
+    // Focus starts on the send button (visible, non-keyboard) so the user can navigate freely.
+    LaunchedEffect(Unit) {
+        try { sendFocus.requestFocus() } catch (_: Exception) {}
+    }
+
     Scaffold(
         topBar = {
-            // Compact top bar — contact name + back only, no extra actions to save width
             TopAppBar(
                 title = {
                     Text(
@@ -115,25 +121,25 @@ fun ChatScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column {
-                    // Attachment preview — only shown when image is selected
+                    // Attachment preview
                     if (selectedImageUri != null) {
                         Box(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
                             AsyncImage(
                                 model = selectedImageUri,
                                 contentDescription = "Attachment preview",
                                 modifier = Modifier
-                                    .size(72.dp) // smaller preview
+                                    .size(56.dp)
                                     .clip(RoundedCornerShape(8.dp)),
                                 contentScale = ContentScale.Crop
                             )
                             IconButton(
-                                onClick = { selectedImageUri = null; inputFocus.requestFocus() },
+                                onClick = { selectedImageUri = null },
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
                                     .size(20.dp)
                                     .background(Color.Black.copy(alpha = 0.5f), androidx.compose.foundation.shape.CircleShape)
                                     .dpadFocusableItem(
-                                        onClick = { selectedImageUri = null; inputFocus.requestFocus() },
+                                        onClick = { selectedImageUri = null },
                                         shape = androidx.compose.foundation.shape.CircleShape,
                                         borderWidth = 2.dp
                                     )
@@ -143,7 +149,7 @@ fun ChatScreen(
                         }
                     }
 
-                    // Single compact input row: [attach] [emoji] [text field] [send]
+                    // Input row: [attach] [emoji] [text field] [send]
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -276,17 +282,15 @@ fun ChatScreen(
         EmojiSymbolPicker(
             onSelect = { char ->
                 inputText += char
+                viewModel.onDraftChanged(inputText)
                 showEmojiDialog = false
                 inputFocus.requestFocus()
             },
             onDismiss = {
                 showEmojiDialog = false
-                inputFocus.requestFocus()
             }
         )
     }
-
-    LaunchedEffect(Unit) { inputFocus.requestFocus() }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -328,20 +332,20 @@ fun EmojiSymbolPicker(onSelect: (String) -> Unit, onDismiss: () -> Unit) {
                 val items = if (isEmojiTab) commonEmojis else commonSymbols
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(5),
-                    modifier = Modifier.height(180.dp) // reduced from 250dp
+                    modifier = Modifier.height(180.dp)
                 ) {
                     items(items) { item ->
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
-                                .size(40.dp) // reduced from 48dp
+                                .size(40.dp)
                                 .dpadFocusableItem(
                                     onClick = { onSelect(item) },
                                     shape = RoundedCornerShape(6.dp),
                                     borderWidth = 3.dp
                                 )
                         ) {
-                            Text(text = item, fontSize = 18.sp) // down from headlineMedium
+                            Text(text = item, fontSize = 18.sp)
                         }
                     }
                 }
@@ -390,7 +394,7 @@ private fun MessageBubble(msg: SmsMessage, onDeleteMessage: (SmsMessage) -> Unit
     ) {
         Box(
             modifier = Modifier
-                .widthIn(max = 220.dp) // reduced from 280dp — screen is only 320dp wide
+                .widthIn(max = 220.dp)
                 .background(bubbleColor, RoundedCornerShape(12.dp))
                 .dpadFocusableItem(
                     onClick = { showMsgOptions = true },
@@ -404,11 +408,13 @@ private fun MessageBubble(msg: SmsMessage, onDeleteMessage: (SmsMessage) -> Unit
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(uri)
-                            .size(330, 210) // 220dp×140dp at 240dpi ≈ 330×210px — avoids loading full-res into memory
+                            .size(240, 160) // ~160×107dp at 208dpi — compact thumbnail
                             .build(),
                         contentDescription = "MMS image",
                         contentScale = ContentScale.FillWidth,
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 140.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 80.dp) // hard cap: never more than 80dp tall
                     )
                     Spacer(Modifier.height(2.dp))
                 }
@@ -418,7 +424,7 @@ private fun MessageBubble(msg: SmsMessage, onDeleteMessage: (SmsMessage) -> Unit
             }
         }
 
-        // Timestamp + status on same compact row
+        // Timestamp + delivery state
         Row(
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
             verticalAlignment = Alignment.CenterVertically

@@ -15,10 +15,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Archive
@@ -45,13 +52,11 @@ fun ConversationsScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val drafts by viewModel.drafts.collectAsState()
 
-    // Do NOT call loadThreads() here — the ViewModel loads on init and survives
-    // back-navigation. Calling it here causes a full reload every time the screen
-    // is recomposed (e.g. when returning from a chat), showing the spinner again.
-    // We do refresh drafts on every recomposition since it's a cheap DB read.
+    // Refresh drafts whenever the conversations screen is visible (e.g. after returning from chat)
     LaunchedEffect(Unit) { viewModel.refreshDrafts() }
 
     var showArchived by remember { mutableStateOf(false) }
+    // FAB focus requester — used as a list item at the bottom so D-pad can reach it
     val fabFocus = remember { FocusRequester() }
 
     Scaffold(
@@ -60,7 +65,7 @@ fun ConversationsScreen(
                 title = {
                     Text(
                         if (showArchived) "Archived" else "Messages",
-                        style = MaterialTheme.typography.titleMedium // smaller than default titleLarge
+                        style = MaterialTheme.typography.titleMedium
                     )
                 },
                 actions = {
@@ -84,38 +89,46 @@ fun ConversationsScreen(
                         Icon(Icons.Default.Settings, "Settings", modifier = Modifier.size(20.dp))
                     }
                 },
-                // Shrink the top bar height — default is 64dp, we want ~48dp on this screen
                 windowInsets = WindowInsets(0.dp)
             )
         },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onNewMessage,
-                modifier = Modifier
-                    .size(48.dp) // smaller FAB for small screen
-                    .focusRequester(fabFocus)
-                    .dpadFocusableItem(
-                        onClick = onNewMessage,
-                        shape = androidx.compose.foundation.shape.CircleShape,
-                        borderWidth = 3.dp
-                    )
-            ) {
-                Icon(Icons.Default.Edit, contentDescription = "New message", modifier = Modifier.size(20.dp))
-            }
-        },
+        // FAB is placed INSIDE the LazyColumn below as a final item so D-pad down reaches it.
+        // Do NOT put it here as a floatingActionButton — it would be unreachable via D-pad.
         contentWindowInsets = WindowInsets(0.dp)
     ) { padding ->
         when {
             isLoading && threads.isEmpty() -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(modifier = Modifier.size(32.dp))
             }
-            threads.isEmpty() -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text(
-                    if (showArchived) "No archived conversations." else "No messages yet.\nTap the pencil to start.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 24.dp)
-                )
+            threads.isEmpty() -> {
+                // Show empty state + FAB so user can still start a conversation
+                Column(
+                    Modifier.fillMaxSize().padding(padding),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        if (showArchived) "No archived conversations." else "No messages yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    FloatingActionButton(
+                        onClick = onNewMessage,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .focusRequester(fabFocus)
+                            .dpadFocusableItem(
+                                onClick = onNewMessage,
+                                shape = androidx.compose.foundation.shape.CircleShape,
+                                borderWidth = 3.dp
+                            )
+                    ) {
+                        Icon(Icons.Default.Edit, "New message", modifier = Modifier.size(20.dp))
+                    }
+                }
+                LaunchedEffect(Unit) { try { fabFocus.requestFocus() } catch (_: Exception) {} }
             }
             else -> {
                 val listState = rememberLazyListState()
@@ -139,6 +152,29 @@ fun ConversationsScreen(
                         )
                         HorizontalDivider(thickness = 0.5.dp)
                     }
+                    // FAB as the last list item — D-pad down from the last thread reaches it
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            FloatingActionButton(
+                                onClick = onNewMessage,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .focusRequester(fabFocus)
+                                    .dpadFocusableItem(
+                                        onClick = onNewMessage,
+                                        shape = androidx.compose.foundation.shape.CircleShape,
+                                        borderWidth = 3.dp
+                                    )
+                            ) {
+                                Icon(Icons.Default.Edit, "New message", modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -159,8 +195,8 @@ private fun ThreadItem(
     onDelete: () -> Unit
 ) {
     var showOptionsDialog by remember { mutableStateOf(false) }
-    // Separate focus requester for the three-dot button so D-pad right moves to it.
     val menuFocusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
 
     if (showOptionsDialog) {
         AlertDialog(
@@ -183,19 +219,24 @@ private fun ThreadItem(
         )
     }
 
-    // The row itself is NOT clickable — only the two child zones are, so that D-pad
-    // focus can move independently between the thread body and the menu button.
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp), // outer spacing only; no click here
+            .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // ── Left zone: avatar + text — takes all remaining width ─────────────
+        // ── Left zone: thread body ─────────────────────────────────────────────
         Row(
             modifier = Modifier
                 .weight(1f)
                 .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+                // D-pad RIGHT from the thread body moves focus to the three-dot button
+                .onPreviewKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyUp && event.key == Key.DirectionRight) {
+                        focusManager.moveFocus(FocusDirection.Right)
+                        true
+                    } else false
+                }
                 .dpadFocusableItem(
                     onClick = onClick,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
@@ -205,7 +246,7 @@ private fun ThreadItem(
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Avatar — 36dp
+            // Avatar
             val initials = thread.contactName
                 .split(" ")
                 .mapNotNull { it.firstOrNull()?.uppercaseChar() }
@@ -289,11 +330,18 @@ private fun ThreadItem(
             }
         }
 
-        // ── Right zone: three-dot menu button — independent focusable target ──
+        // ── Right zone: three-dot menu ─────────────────────────────────────────
+        // D-pad LEFT from here moves back to the thread body
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(40.dp)
                 .focusRequester(menuFocusRequester)
+                .onPreviewKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyUp && event.key == Key.DirectionLeft) {
+                        focusManager.moveFocus(FocusDirection.Left)
+                        true
+                    } else false
+                }
                 .dpadFocusableItem(
                     onClick = { showOptionsDialog = true },
                     shape = androidx.compose.foundation.shape.CircleShape,
@@ -304,7 +352,7 @@ private fun ThreadItem(
             Icon(
                 Icons.Default.MoreVert,
                 contentDescription = "Options",
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(18.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -319,7 +367,7 @@ private fun ThreadItem(
 private fun DialogOption(text: String, onClick: () -> Unit) {
     Text(
         text = text,
-        style = MaterialTheme.typography.bodyMedium, // down from bodyLarge
+        style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier
             .fillMaxWidth()
             .dpadFocusableItem(

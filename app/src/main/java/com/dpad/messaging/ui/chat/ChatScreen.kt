@@ -54,7 +54,10 @@ fun ChatScreen(
     val messages by viewModel.messages.collectAsState()
     val isSending by viewModel.isSending.collectAsState()
     val hasMore by viewModel.hasMore.collectAsState()
+    val draftText by viewModel.draftText.collectAsState()
+    // inputText is local state seeded once from draftText after init
     var inputText by remember { mutableStateOf("") }
+    var draftSeeded by remember { mutableStateOf(false) }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var showEmojiDialog by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
@@ -67,6 +70,14 @@ fun ChatScreen(
     )
 
     LaunchedEffect(threadId) { viewModel.init(threadId, address) }
+    // Seed the input field once from the restored draft (fires when draftText becomes non-empty
+    // after init loads it from the DB, or stays "" if no draft exists)
+    LaunchedEffect(draftText) {
+        if (!draftSeeded) {
+            inputText = draftText
+            draftSeeded = true
+        }
+    }
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
     }
@@ -179,7 +190,10 @@ fun ChatScreen(
 
                         OutlinedTextField(
                             value = inputText,
-                            onValueChange = { inputText = it },
+                            onValueChange = { newText ->
+                                inputText = newText
+                                viewModel.onDraftChanged(newText)
+                            },
                             placeholder = { Text("Message", style = MaterialTheme.typography.bodySmall) },
                             singleLine = false,
                             maxLines = 3,

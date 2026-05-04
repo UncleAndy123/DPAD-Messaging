@@ -14,12 +14,17 @@ class ConversationsViewModel(application: Application) : AndroidViewModel(applic
 
     private val db = AppDatabase.getDatabase(application)
     private val repository = SmsRepository(application, db.threadMetadataDao())
+    private val draftDao = db.messageDraftDao()
 
     private val _threads = MutableStateFlow<List<SmsThread>>(emptyList())
     val threads: StateFlow<List<SmsThread>> = _threads
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading
+
+    /** Map of threadId → draft text for all threads that have a saved draft. */
+    private val _drafts = MutableStateFlow<Map<Long, String>>(emptyMap())
+    val drafts: StateFlow<Map<Long, String>> = _drafts
 
     init {
         loadThreads()
@@ -38,6 +43,15 @@ class ConversationsViewModel(application: Application) : AndroidViewModel(applic
             val smsThreads = repository.getThreads(includeArchived = showArchived)
             _threads.value = smsThreads
             _isLoading.value = false
+            // Refresh drafts map alongside threads
+            refreshDrafts()
+        }
+    }
+
+    fun refreshDrafts() {
+        viewModelScope.launch {
+            val all = draftDao.getAllDrafts()
+            _drafts.value = all.associate { it.threadId to it.text }
         }
     }
 

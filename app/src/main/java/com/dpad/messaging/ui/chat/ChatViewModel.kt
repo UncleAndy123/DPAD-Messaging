@@ -9,6 +9,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dpad.messaging.data.db.AppDatabase
+import com.dpad.messaging.data.db.MessageDraft
 import com.dpad.messaging.data.model.DeliveryState
 import com.dpad.messaging.data.model.MsgType
 import com.dpad.messaging.data.model.SmsMessage
@@ -24,17 +25,23 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         private const val PAGE_SIZE = 50
+        private const val DRAFT_DEBOUNCE_MS = 500L
     }
 
     private val db = AppDatabase.getDatabase(app)
     private val repo = SmsRepository(app, db.threadMetadataDao())
     private val sender = SmsSender(app)
+    private val draftDao = db.messageDraftDao()
 
     private val _messages = MutableStateFlow<List<SmsMessage>>(emptyList())
     val messages: StateFlow<List<SmsMessage>> = _messages
 
     private val _isSending = MutableStateFlow(false)
     val isSending: StateFlow<Boolean> = _isSending
+
+    /** Persisted draft text for this thread. Exposed so ChatScreen can seed inputText. */
+    private val _draftText = MutableStateFlow("")
+    val draftText: StateFlow<String> = _draftText
 
     /** How many messages are currently loaded. Incremented by PAGE_SIZE on each "Load Earlier". */
     private var messageLimit = PAGE_SIZE
@@ -45,14 +52,36 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private var address: String = ""
     private var messagesObserver: ContentObserver? = null
     private var reloadJob: Job? = null
+    private var draftSaveJob: Job? = null
 
     fun init(threadId: Long, address: String) {
         Log.d("ChatVM", "init threadId=$threadId address=$address")
         this.threadId = threadId
         this.address = address
         load()
-        if (threadId > 0) viewModelScope.launch { repo.markThreadRead(threadId) }
+        if (threadId > 0) viewModelScope.launch {
+            repo.markThreadRead(threadId)
+            // Restore any saved draft for this thread
+            val saved = draftDao.getDraft(threadId)
+            if (saved != null) _draftText.value = saved.text
+        }
         registerObservers()
+    }
+
+    /** Called from ChatScreen on every keystroke; auto-saves after a debounce. */
+    fun onDraftChanged(text: String) {
+        _draftText.value = text
+        draftSaveJob?.cancel()
+        draftSaveJob = viewModelScope.launch {
+            delay(DRAFT_DEBOUNCE_MS)
+            val tid = threadId
+            if (tid <= 0) return@launch
+            if (text.isBlank()) {
+                draftDao.deleteDraft(tid)
+            } else {
+                draftDao.saveDraft(MessageDraft(threadId = tid, text = text))
+            }
+        }
     }
 
     private fun scheduleReload() {
@@ -128,6 +157,12 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 val optimistic = SmsMessage(-sentAt, threadId, address, text, sentAt, outType, partUris, DeliveryState.SENDING)
                 _messages.value = _messages.value + optimistic
 
+                // Clear draft immediately on send
+                _draftText.value = ""
+                draftSaveJob?.cancel()
+                val tid = threadId
+                if (tid > 0) draftDao.deleteDraft(tid)
+
                 if (isMms) {
                     var imageBytes: ByteArray? = null
                     var mimeType: String? = null
@@ -151,9 +186,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                             threadId = resolvedThreadId
                         }
                         // Fetch fresh list from provider which now includes the sent message
-                        val tid = threadId
-                        if (tid > 0) {
-                            val fetched = repo.getMessages(tid, messageLimit)
+                        val fetchTid = threadId
+                        if (fetchTid > 0) {
+                            val fetched = repo.getMessages(fetchTid, messageLimit)
                             Log.d("ChatVM", "post-send fetched=${fetched.size}")
                             _messages.value = fetched
                             updateHasMore(fetched.size)
@@ -186,5 +221,6 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
         messagesObserver = null
         reloadJob?.cancel()
+        draftSaveJob?.cancel()
     }
 }

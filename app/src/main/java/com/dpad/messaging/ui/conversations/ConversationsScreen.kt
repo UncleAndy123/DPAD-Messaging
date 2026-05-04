@@ -43,10 +43,13 @@ fun ConversationsScreen(
 ) {
     val threads by viewModel.threads.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val drafts by viewModel.drafts.collectAsState()
 
     // Do NOT call loadThreads() here — the ViewModel loads on init and survives
     // back-navigation. Calling it here causes a full reload every time the screen
     // is recomposed (e.g. when returning from a chat), showing the spinner again.
+    // We do refresh drafts on every recomposition since it's a cheap DB read.
+    LaunchedEffect(Unit) { viewModel.refreshDrafts() }
 
     var showArchived by remember { mutableStateOf(false) }
     val fabFocus = remember { FocusRequester() }
@@ -124,6 +127,7 @@ fun ConversationsScreen(
                     itemsIndexed(threads) { index, thread ->
                         ThreadItem(
                             thread = thread,
+                            draftText = drafts[thread.threadId],
                             focusRequester = focusRequesters.getOrNull(index),
                             isFirst = index == 0,
                             onClick = { onOpenChat(thread.threadId, thread.address, thread.contactName) },
@@ -144,6 +148,7 @@ fun ConversationsScreen(
 @Composable
 private fun ThreadItem(
     thread: SmsThread,
+    draftText: String?,
     focusRequester: FocusRequester?,
     isFirst: Boolean,
     onClick: () -> Unit,
@@ -247,15 +252,33 @@ private fun ThreadItem(
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = thread.snippet,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = if (thread.unreadCount > 0) FontWeight.Medium else FontWeight.Normal,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
-                    )
+                    if (!draftText.isNullOrBlank()) {
+                        Text(
+                            text = "Draft: ",
+                            maxLines = 1,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        Text(
+                            text = draftText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Text(
+                            text = thread.snippet,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = if (thread.unreadCount > 0) FontWeight.Medium else FontWeight.Normal,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                     if (thread.unreadCount > 0) {
                         Spacer(Modifier.width(4.dp))
                         Badge(modifier = Modifier.padding(0.dp)) {

@@ -27,5 +27,10 @@ Notes before publishing
 - This repo intentionally does not include keystore credentials. Create a root-level keystore.properties for release signing if needed. See app/build.gradle.kts for the signing config.
 - Ensure you understand carrier and platform constraints when using Telephony providers (MMS delivery may vary by carrier).
 
+Support
+If you find this project useful, you can support ongoing development at:
+
+https://buymeacoffee.com/jbriones95
+
 License
 MIT (add your preferred license file)

@@ -122,15 +122,18 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
         val cr = getApplication<Application>().contentResolver
         try { cr.registerContentObserver(Uri.parse("content://mms-sms/"), true, messagesObserver!!) } catch (_: Exception) {}
+        // BUG 12 fix: also observe mms/ and sms/ directly — some OEM ROMs only notify on these
+        try { cr.registerContentObserver(Uri.parse("content://mms/"), true, messagesObserver!!) } catch (_: Exception) {}
+        try { cr.registerContentObserver(Uri.parse("content://sms/"), true, messagesObserver!!) } catch (_: Exception) {}
     }
 
     fun load() {
         viewModelScope.launch {
             val tid = threadId
-            Log.d("ChatVM", "load() tid=$tid")
+            Log.e("ChatVM", "load() tid=$tid")
             if (tid > 0) {
                 val msgs = repo.getMessages(tid, messageLimit)
-                Log.d("ChatVM", "load() got ${msgs.size} messages")
+                Log.e("ChatVM", "load() got ${msgs.size} messages (mms=${msgs.count { it.type == MsgType.MMS_IN || it.type == MsgType.MMS_OUT }})")
                 _messages.value = msgs
                 updateHasMore(msgs.size)
             }
@@ -159,8 +162,19 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 val partUris = imageUri?.let { listOf(it.toString()) } ?: emptyList()
                 val sentAt = System.currentTimeMillis()
 
-                // Show optimistic bubble immediately
-                val optimistic = SmsMessage(-sentAt, threadId, address, text, sentAt, outType, partUris, DeliveryState.SENDING)
+                // Show optimistic bubble immediately. Provide both legacy URI list and
+                // the new empty mmsParts list for consistency with the changed model.
+                val optimistic = SmsMessage(
+                    -sentAt,
+                    threadId,
+                    address,
+                    text,
+                    sentAt,
+                    outType,
+                    partUris,
+                    emptyList(),
+                    DeliveryState.SENDING
+                )
                 _messages.value = _messages.value + optimistic
 
                 // Clear draft immediately on send
@@ -179,8 +193,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     }
 
                     try {
-                        // Try MMS first (group or attachment)
-                        sender.sendMms(addresses, text, imageBytes, mimeType)
+                        // BUG 3 fix: pass real threadId so Klinker associates with correct thread
+                        sender.sendMms(addresses, text, threadId, imageBytes, mimeType)
                         // MMS provider update may be delayed; schedule a reload after a short wait
                         delay(3000)
                         val tid = threadId

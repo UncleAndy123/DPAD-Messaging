@@ -450,18 +450,79 @@ private fun MessageBubble(msg: SmsMessage, onDeleteMessage: (SmsMessage) -> Unit
                 .padding(horizontal = 10.dp, vertical = 6.dp)
         ) {
             Column {
-                msg.mmsPartUris.forEach { uri ->
+                // Prefer new richer mmsParts model. Fall back to the older string URIs for
+                // backward compatibility. Each part will attempt to load via Coil; onError
+                // we fallback to reading the provider stream directly (handled by a small
+                // helper that we'll inline here for simplicity).
+                val parts = if (msg.mmsParts.isNotEmpty()) msg.mmsParts else msg.mmsPartUris.mapIndexed { i, uri ->
+                    // Create synthetic MmsPart descriptors for legacy string list
+                    com.dpad.messaging.data.model.MmsPart(i.toLong(), uri, "image/*", null, true)
+                }
+
+                parts.forEach { part ->
+                    // Track whether Coil reported a load failure for this part
+                    val coilFailed = remember { mutableStateOf(false) }
+                    // Hold bytes read from the provider for fallback rendering
+                    val fallbackBytes = remember(part.uri) { mutableStateOf<ByteArray?>(null) }
+
+                    val imageRequest = ImageRequest.Builder(context)
+                        .data(part.uri)
+                        .size(240, 160)
+                        .listener(
+                            onError = { _, result ->
+                                coilFailed.value = true
+                                android.util.Log.e("Coil", "Failed to load MMS image uri=${part.uri}", result.throwable)
+                            },
+                            onSuccess = { _, _ ->
+                                coilFailed.value = false
+                                android.util.Log.e("Coil", "Loaded MMS image uri=${part.uri}")
+                            }
+                        )
+                        .build()
+
+                    // Primary attempt: let Coil try to load the content URI
                     AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(uri)
-                            .size(240, 160) // ~160×107dp at 208dpi — compact thumbnail
-                            .build(),
+                        model = imageRequest,
                         contentDescription = "MMS image",
                         contentScale = ContentScale.FillWidth,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 80.dp) // hard cap: never more than 80dp tall
+                            .heightIn(max = 80.dp)
                     )
+
+                    // If Coil failed, or the provider indicated the part has no data field,
+                    // attempt to read the InputStream and decode bytes as a fallback.
+                    if ((coilFailed.value || !part.hasData) && fallbackBytes.value == null) {
+                        LaunchedEffect(part.uri, coilFailed.value) {
+                            try {
+                                val resolver = context.contentResolver
+                                val uri = android.net.Uri.parse(part.uri)
+                                resolver.openInputStream(uri)?.use { stream ->
+                                    fallbackBytes.value = stream.readBytes()
+                                } ?: android.util.Log.e("MmsFallback", "openInputStream returned null for ${part.uri}")
+                            } catch (e: Exception) {
+                                android.util.Log.e("MmsFallback", "Fallback failed to read ${part.uri}", e)
+                            }
+                        }
+                    }
+
+                    // If we obtained bytes from the provider, ask Coil to decode them so
+                    // we reuse its decoding and caching behavior.
+                    fallbackBytes.value?.let { bytes ->
+                        val req = ImageRequest.Builder(context)
+                            .data(bytes)
+                            .size(240, 160)
+                            .build()
+                        AsyncImage(
+                            model = req,
+                            contentDescription = "MMS image",
+                            contentScale = ContentScale.FillWidth,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 80.dp)
+                        )
+                    }
+
                     Spacer(Modifier.height(2.dp))
                 }
                 if (msg.body.isNotBlank()) {

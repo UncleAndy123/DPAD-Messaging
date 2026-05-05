@@ -7,9 +7,11 @@ import android.database.Cursor
 import android.net.Uri
 import android.provider.ContactsContract
 import android.provider.Telephony
+import android.util.Log
 import com.dpad.messaging.data.db.ThreadMetadataDao
 import com.dpad.messaging.data.model.MsgType
 import com.dpad.messaging.data.model.SmsMessage
+import com.dpad.messaging.data.model.MmsPart
 import com.dpad.messaging.data.model.SmsThread
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -104,29 +106,37 @@ class SmsRepository(
         threads.sortedWith(compareByDescending<SmsThread> { it.isPinned }.thenByDescending { it.date })
     }
 
-    /** Fetch unread SMS counts for all threads in a single GROUP BY query. */
+    /** Fetch unread counts for all threads — SMS + MMS combined (BUG 10 fix). */
     private fun fetchAllUnreadCounts(): Map<Long, Int> {
         val map = mutableMapOf<Long, Int>()
+        // SMS unread
+        countUnreadByThread(Telephony.Sms.CONTENT_URI, Telephony.Sms.THREAD_ID, Telephony.Sms.READ)
+            .forEach { (tid, cnt) -> map[tid] = (map[tid] ?: 0) + cnt }
+        // MMS unread (BUG 10)
+        countUnreadByThread(Telephony.Mms.CONTENT_URI, Telephony.Mms.THREAD_ID, Telephony.Mms.READ)
+            .forEach { (tid, cnt) -> map[tid] = (map[tid] ?: 0) + cnt }
+        return map
+    }
+
+    private fun countUnreadByThread(uri: Uri, threadIdCol: String, readCol: String): Map<Long, Int> {
+        val map = mutableMapOf<Long, Int>()
+        // R6 fix: COUNT(*) column alias in projection is unreliable across OEM providers.
+        // Fetch all unread rows and count in-memory instead.
         val cursor = try {
             cr.query(
-                Telephony.Sms.CONTENT_URI,
-                arrayOf(Telephony.Sms.THREAD_ID, "COUNT(*) as unread_count"),
-                "${Telephony.Sms.READ} = 0",
+                uri,
+                arrayOf(threadIdCol),
+                "$readCol = 0",
                 null,
-                "${Telephony.Sms.THREAD_ID} ASC"
+                null
             )
         } catch (e: Exception) { null }
         cursor?.use { c ->
-            val tidIdx = c.getColumnIndex(Telephony.Sms.THREAD_ID)
-            val cntIdx = c.getColumnIndex("unread_count")
-            if (tidIdx < 0 || cntIdx < 0) {
-                // Fallback: some providers don't support column aliases in projection
-                return@use
-            }
+            val tidIdx = c.getColumnIndex(threadIdCol)
+            if (tidIdx < 0) return@use
             while (c.moveToNext()) {
                 val tid = c.getLong(tidIdx)
-                val cnt = c.getInt(cntIdx)
-                map[tid] = cnt
+                map[tid] = (map[tid] ?: 0) + 1
             }
         }
         return map
@@ -165,7 +175,8 @@ class SmsRepository(
                 val type = c.getInt(c.getColumnIndexOrThrow(Telephony.Sms.TYPE))
                 val msgType = if (type == Telephony.Sms.MESSAGE_TYPE_SENT) MsgType.SMS_OUT else MsgType.SMS_IN
                 val state = if (msgType == com.dpad.messaging.data.model.MsgType.SMS_OUT) com.dpad.messaging.data.model.DeliveryState.SENT else com.dpad.messaging.data.model.DeliveryState.UNKNOWN
-                messages.add(SmsMessage(id, threadId, address, body, date, msgType, emptyList(), state))
+                // No MMS parts for SMS messages
+                messages.add(SmsMessage(id, threadId, address, body, date, msgType, emptyList(), emptyList(), state))
                 // Stop reading SMS once we already have enough candidates
                 if (limit != Int.MAX_VALUE && messages.size >= limit * 2) break
             }
@@ -182,17 +193,27 @@ class SmsRepository(
             )
         } catch (e: Exception) { null }
 
+        Log.e("SmsRepo", "getMessages tid=$threadId mmsCursor=${mmsCursor?.count}")
         mmsCursor?.use { c ->
             while (c.moveToNext()) {
                 val mmsId = c.getLong(c.getColumnIndexOrThrow(Telephony.Mms._ID))
                 val date = c.getLong(c.getColumnIndexOrThrow(Telephony.Mms.DATE)) * 1000L
                 val box = c.getInt(c.getColumnIndexOrThrow(Telephony.Mms.MESSAGE_BOX))
-                val msgType = if (box == Telephony.Mms.MESSAGE_BOX_SENT) MsgType.MMS_OUT else MsgType.MMS_IN
+                // BUG 5 fix: outbox (4) and failed (5) are also outgoing states
+                val msgType = when (box) {
+                    Telephony.Mms.MESSAGE_BOX_SENT,
+                    Telephony.Mms.MESSAGE_BOX_OUTBOX,
+                    Telephony.Mms.MESSAGE_BOX_FAILED -> MsgType.MMS_OUT
+                    else -> MsgType.MMS_IN
+                }
                 val address = getMmsAddress(mmsId)
-                val (body, partUris) = getMmsParts(mmsId)
+                val (body, parts) = getMmsParts(mmsId)
+                // For backward compatibility with existing UI we still expose part URI strings
+                val partUris = parts.map { it.uri }
+                Log.e("SmsRepo", "  mmsId=$mmsId box=$box msgType=$msgType body='$body' partUris=$partUris parts=${parts.map { it.id }}")
                 // Provider messages should be marked SENT for outgoing types
                 val state = if (msgType == com.dpad.messaging.data.model.MsgType.MMS_OUT) com.dpad.messaging.data.model.DeliveryState.SENT else com.dpad.messaging.data.model.DeliveryState.UNKNOWN
-                messages.add(SmsMessage(mmsId, threadId, address, body, date, msgType, partUris, state))
+                messages.add(SmsMessage(mmsId, threadId, address, body, date, msgType, partUris, parts, state))
             }
         }
 
@@ -213,8 +234,12 @@ class SmsRepository(
     suspend fun markThreadRead(threadId: Long) = withContext(Dispatchers.IO) {
         val values = ContentValues().apply { put(Telephony.Sms.READ, 1) }
         try {
+            // BUG 11 fix: mark both SMS and MMS as read
             cr.update(Telephony.Sms.CONTENT_URI, values,
                 "${Telephony.Sms.THREAD_ID} = ? AND ${Telephony.Sms.READ} = 0",
+                arrayOf(threadId.toString()))
+            cr.update(Telephony.Mms.CONTENT_URI, values,
+                "${Telephony.Mms.THREAD_ID} = ? AND ${Telephony.Mms.READ} = 0",
                 arrayOf(threadId.toString()))
         } catch (_: Exception) {}
     }
@@ -315,6 +340,9 @@ class SmsRepository(
     }
 
     private fun getMmsAddress(mmsId: Long): String {
+        // BUG 6 fix: filter by address type — FROM (0x89) is the sender.
+        // Iterating all rows without type check returns the first TO recipient
+        // for group MMS, showing the wrong sender.
         val cursor = try {
             cr.query(
                 Uri.parse("content://mms/$mmsId/addr"),
@@ -322,36 +350,86 @@ class SmsRepository(
             )
         } catch (e: Exception) { null }
         return cursor?.use { c ->
-            var result = ""
+            var fromAddr = ""
+            var firstNonToken = ""
             while (c.moveToNext()) {
                 val addr = c.getString(0) ?: continue
-                if (addr != "insert-address-token") { result = addr; break }
+                if (addr == "insert-address-token") continue
+                if (firstNonToken.isEmpty()) firstNonToken = addr
+                if (c.getInt(1) == 0x89) { // PduHeaders.FROM
+                    fromAddr = addr
+                    break
+                }
             }
-            result
+            fromAddr.ifEmpty { firstNonToken }
         } ?: ""
     }
 
-    private fun getMmsParts(mmsId: Long): Pair<String, List<String>> {
+    /**
+     * Read parts for an MMS and return the text snippet plus a list of MmsPart descriptors.
+     */
+    private fun getMmsParts(mmsId: Long): Pair<String, List<MmsPart>> {
         var text = ""
-        val uris = mutableListOf<String>()
+        val parts = mutableListOf<MmsPart>()
+        // Use the official Mms.Part.CONTENT_URI with MSG_ID selection. Request a few
+        // useful columns including inline text, possible filename and _data marker.
+        val partUri = Telephony.Mms.Part.CONTENT_URI
+        Log.e("SmsRepo", "getMmsParts mmsId=$mmsId partUri=$partUri")
+        val projection = arrayOf(
+            Telephony.Mms.Part._ID,
+            Telephony.Mms.Part.CONTENT_TYPE,
+            Telephony.Mms.Part.TEXT,
+            "name",
+            "_data"
+        )
         val cursor = try {
             cr.query(
-                Uri.parse("content://mms/part"),
-                arrayOf("_id", "ct", "_data", "text"),
-                "mid = ?", arrayOf(mmsId.toString()), null
+                partUri,
+                projection,
+                "${Telephony.Mms.Part.MSG_ID} = ?",
+                arrayOf(mmsId.toString()),
+                null
             )
-        } catch (e: Exception) { null }
+        } catch (e: Exception) {
+            Log.e("SmsRepo", "getMmsParts query failed for mmsId=$mmsId", e)
+            null
+        }
+        Log.e("SmsRepo", "getMmsParts mmsId=$mmsId cursor count=${cursor?.count}")
         cursor?.use { c ->
             while (c.moveToNext()) {
-                val partId = c.getLong(0)
-                val ct = c.getString(1) ?: ""
+                val partId = c.getLong(c.getColumnIndexOrThrow(Telephony.Mms.Part._ID))
+                val ct = c.getString(c.getColumnIndexOrThrow(Telephony.Mms.Part.CONTENT_TYPE)) ?: ""
+                val inlineText = try { c.getString(c.getColumnIndexOrThrow(Telephony.Mms.Part.TEXT)) } catch (_: Exception) { null }
+                val name = try { c.getString(c.getColumnIndexOrThrow("name")) } catch (_: Exception) { null }
+                val dataCol = try { c.getString(c.getColumnIndexOrThrow("_data")) } catch (_: Exception) { null }
+                val hasData = !dataCol.isNullOrBlank() || !inlineText.isNullOrBlank()
+
+                Log.e("SmsRepo", "  part id=$partId ct=$ct name=$name hasData=$hasData")
+
                 when {
-                    ct == "text/plain" -> text = c.getString(3) ?: ""
-                    ct.startsWith("image") || ct.startsWith("video") ->
-                        uris.add("content://mms/part/$partId")
+                    ct == "text/plain" -> {
+                        text = if (!inlineText.isNullOrEmpty()) {
+                            inlineText
+                        } else {
+                            // Read from content stream via the part URI
+                            val uri = Uri.withAppendedPath(partUri, partId.toString())
+                            try {
+                                cr.openInputStream(uri)?.use { it.bufferedReader().readText() } ?: ""
+                            } catch (e: Exception) {
+                                Log.e("SmsRepo", "Failed to read text part stream for partId=$partId", e)
+                                ""
+                            }
+                        }
+                    }
+                    ct.startsWith("image") || ct.startsWith("video") -> {
+                        val uriStr = Uri.withAppendedPath(partUri, partId.toString()).toString()
+                        parts.add(MmsPart(partId, uriStr, ct, name, hasData))
+                    }
+                    // application/smil and other types ignored here (SMIL handled elsewhere)
                 }
             }
         }
-        return text to uris
+        Log.e("SmsRepo", "getMmsParts mmsId=$mmsId -> text='$text' parts=${parts.map { it.uri }}")
+        return text to parts
     }
 }

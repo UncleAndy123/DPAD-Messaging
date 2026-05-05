@@ -1,13 +1,12 @@
 package com.dpad.messaging.data.repository
 
-import android.app.PendingIntent
 import android.content.ContentValues
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Telephony
 import android.telephony.SmsManager
-import android.os.Build
+import android.telephony.SubscriptionManager
 import com.klinker.android.send_message.Message
 import com.klinker.android.send_message.Settings
 import com.klinker.android.send_message.Transaction
@@ -30,13 +29,13 @@ class SmsSender(private val context: Context) {
             put(Telephony.Sms.BODY, body)
             put(Telephony.Sms.DATE, System.currentTimeMillis())
             put(Telephony.Sms.READ, 1)
-            put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_OUTBOX) // outbox until sent
+            put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_OUTBOX)
         }
         val insertedUri: Uri? = try {
             context.contentResolver.insert(Telephony.Sms.CONTENT_URI, values)
         } catch (_: Exception) { null }
 
-        // Now send over the air
+        // Send over the air
         val parts = manager.divideMessage(body)
         if (parts.size == 1) {
             manager.sendTextMessage(address, null, body, null, null)
@@ -44,41 +43,76 @@ class SmsSender(private val context: Context) {
             manager.sendMultipartTextMessage(address, null, parts, null, null)
         }
 
-        // Move from outbox -> sent
+        // Move from outbox → sent
         if (insertedUri != null) {
             try {
-                val sentValues = ContentValues().apply {
-                    put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_SENT)
-                }
-                context.contentResolver.update(insertedUri, sentValues, null, null)
+                context.contentResolver.update(
+                    insertedUri,
+                    ContentValues().apply { put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_SENT) },
+                    null, null
+                )
             } catch (_: Exception) {}
         }
 
         insertedUri
     }
 
-    suspend fun sendMms(addresses: List<String>, body: String, imageBytes: ByteArray? = null, mimeType: String? = null) = withContext(Dispatchers.IO) {
+    /**
+     * Sends an MMS via Fossify mmslib's Transaction with useSystemSending = true.
+     *
+     * Fossify mmslib's sendNewMessage(Message) no longer accepts a threadId parameter
+     * (unlike Klinker 4.0.0). The library resolves the thread from the recipient addresses.
+     */
+    suspend fun sendMms(
+        addresses: List<String>,
+        body: String,
+        threadId: Long = Transaction.NO_THREAD_ID,
+        imageBytes: ByteArray? = null,
+        mimeType: String? = null
+    ) = withContext(Dispatchers.IO) {
+        val subId = getDefaultSmsSubId()
+
         val settings = Settings().apply {
-            useSystemSending = true   // let the OS MMS stack handle APN/connectivity
-            group            = addresses.size > 1
-            sendLongAsMms    = true
-            sendLongAsMmsAfter = 3
+            useSystemSending   = true
+            group              = addresses.size > 1
+            sendLongAsMms      = true
+            sendLongAsMmsAfter = 1
+            if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+                subscriptionId = subId
+            }
         }
 
-        val transaction = Transaction(context, settings)
         val message = Message(body, addresses.toTypedArray())
 
         if (imageBytes != null && mimeType != null) {
             message.addMedia(imageBytes, mimeType)
         }
 
-        transaction.sendNewMessage(message, Transaction.NO_THREAD_ID)
+        Transaction(context, settings).sendNewMessage(message)
     }
 
     @Suppress("DEPRECATION")
-    private fun getSmsManager(): SmsManager =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-            context.getSystemService(SmsManager::class.java)
-        else
+    private fun getSmsManager(): SmsManager {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val subId = getDefaultSmsSubId()
+            val base = context.getSystemService(SmsManager::class.java)
+            if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID)
+                base.createForSubscriptionId(subId)
+            else
+                base
+        } else {
             SmsManager.getDefault()
+        }
+    }
+
+    @Suppress("MissingPermission")
+    private fun getDefaultSmsSubId(): Int {
+        return try {
+            SubscriptionManager.getDefaultSmsSubscriptionId()
+                .takeIf { it != SubscriptionManager.INVALID_SUBSCRIPTION_ID }
+                ?: SubscriptionManager.getDefaultSubscriptionId()
+        } catch (_: Exception) {
+            SubscriptionManager.INVALID_SUBSCRIPTION_ID
+        }
+    }
 }

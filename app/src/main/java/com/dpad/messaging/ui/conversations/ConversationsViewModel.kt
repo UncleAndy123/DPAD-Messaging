@@ -1,11 +1,17 @@
 package com.dpad.messaging.ui.conversations
 
 import android.app.Application
+import android.database.ContentObserver
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dpad.messaging.data.db.AppDatabase
 import com.dpad.messaging.data.model.SmsThread
 import com.dpad.messaging.data.repository.SmsRepository
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -26,8 +32,32 @@ class ConversationsViewModel(application: Application) : AndroidViewModel(applic
     private val _drafts = MutableStateFlow<Map<Long, String>>(emptyMap())
     val drafts: StateFlow<Map<Long, String>> = _drafts
 
+    private var reloadJob: Job? = null
+    private var contentObserver: ContentObserver? = null
+
     init {
         loadThreads()
+        registerObserver()
+    }
+
+    private fun registerObserver() {
+        val handler = Handler(Looper.getMainLooper())
+        contentObserver = object : ContentObserver(handler) {
+            override fun onChange(selfChange: Boolean, uri: Uri?) = scheduleReload()
+            override fun onChange(selfChange: Boolean) = scheduleReload()
+        }
+        val cr = getApplication<Application>().contentResolver
+        try { cr.registerContentObserver(Uri.parse("content://mms-sms/"), true, contentObserver!!) } catch (_: Exception) {}
+        try { cr.registerContentObserver(Uri.parse("content://mms/"), true, contentObserver!!) } catch (_: Exception) {}
+        try { cr.registerContentObserver(Uri.parse("content://sms/"), true, contentObserver!!) } catch (_: Exception) {}
+    }
+
+    private fun scheduleReload() {
+        reloadJob?.cancel()
+        reloadJob = viewModelScope.launch {
+            delay(300)
+            loadThreads()
+        }
     }
 
     private var showArchived = false
@@ -92,5 +122,14 @@ class ConversationsViewModel(application: Application) : AndroidViewModel(applic
             repository.deleteThread(threadId)
             loadThreads()
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        contentObserver?.let {
+            try { getApplication<Application>().contentResolver.unregisterContentObserver(it) } catch (_: Exception) {}
+        }
+        contentObserver = null
+        reloadJob?.cancel()
     }
 }

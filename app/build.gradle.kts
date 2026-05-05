@@ -22,7 +22,7 @@ android {
 
     defaultConfig {
         applicationId = "com.dpad.messaging"
-        minSdk = 23
+        minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -95,7 +95,7 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
     
-    implementation("com.klinkerapps:android-smsmms:4.0.0")
+    implementation("org.fossify:mmslib:1.0.0")
 
     debugImplementation(libs.androidx.ui.tooling)
 }

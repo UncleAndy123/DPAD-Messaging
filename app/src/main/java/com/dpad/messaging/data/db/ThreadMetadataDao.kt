@@ -14,6 +14,10 @@ interface ThreadMetadataDao {
     @Query("SELECT * FROM thread_metadata WHERE threadId = :threadId")
     suspend fun getMetadataSync(threadId: Long): ThreadMetadata?
 
+    /** Blocking variant for use from non-coroutine contexts (e.g. BroadcastReceiver). */
+    @Query("SELECT * FROM thread_metadata WHERE threadId = :threadId")
+    fun getMetadataBlocking(threadId: Long): ThreadMetadata?
+
     @Query("SELECT * FROM thread_metadata WHERE threadId = :threadId")
     fun getMetadata(threadId: Long): Flow<ThreadMetadata?>
 

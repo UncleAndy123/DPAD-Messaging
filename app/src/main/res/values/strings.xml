@@ -11,6 +11,7 @@
     <string name="back">Back</string>
     <string name="call">Call</string>
     <string name="details">Details</string>
+    <string name="conversation_options">Conversation options</string>
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
     <string name="save">Save</string>
@@ -58,6 +59,7 @@
     <string name="participants">Participants</string>
     <string name="rename_conversation">Rename Conversation</string>
     <string name="enter_name">Enter name…</string>
+    <string name="enter_recipients_hint">Enter numbers, separated by commas</string>
 
     <!-- ─── Permissions ─── -->
     <string name="permission_sms_title">SMS Permission Needed</string>

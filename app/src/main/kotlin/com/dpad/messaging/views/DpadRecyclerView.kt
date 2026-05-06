@@ -37,8 +37,8 @@ class DpadRecyclerView @JvmOverloads constructor(
             when (direction) {
                 FOCUS_UP -> {
                     val firstVisible = lm.findFirstCompletelyVisibleItemPosition()
-                    val focusedPos = getChildAdapterPosition(focused)
-                    if (firstVisible == 0 && (focusedPos == 0 || focusedPos == RecyclerView.NO_ID.toInt())) {
+                    val focusedPos = getFocusedAdapterPosition(focused)
+                    if (firstVisible == 0 && (focusedPos == 0 || focusedPos == RecyclerView.NO_POSITION)) {
                         onTopEdgeReached?.invoke()
                         // Let the framework find the next focusable view above this RecyclerView
                         return focusSearchParent(direction)
@@ -47,7 +47,7 @@ class DpadRecyclerView @JvmOverloads constructor(
                 FOCUS_DOWN -> {
                     val itemCount = adapter?.itemCount ?: 0
                     val lastVisible = lm.findLastCompletelyVisibleItemPosition()
-                    val focusedPos = getChildAdapterPosition(focused)
+                    val focusedPos = getFocusedAdapterPosition(focused)
                     if (itemCount > 0 && lastVisible == itemCount - 1 && focusedPos == itemCount - 1) {
                         onBottomEdgeReached?.invoke()
                         return focusSearchParent(direction)
@@ -57,6 +57,15 @@ class DpadRecyclerView @JvmOverloads constructor(
         }
 
         return super.focusSearch(focused, direction)
+    }
+
+    /**
+     * Returns adapter position for any view inside an item (not only direct children).
+     * Prevents ClassCastException when focus lands on nested views with non-RV LayoutParams.
+     */
+    private fun getFocusedAdapterPosition(focused: View): Int {
+        val itemView = findContainingItemView(focused) ?: return RecyclerView.NO_POSITION
+        return getChildAdapterPosition(itemView)
     }
 
     /** Requests focus search starting from this RecyclerView's perspective (not from a child). */

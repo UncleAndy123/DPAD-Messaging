@@ -20,7 +20,8 @@ import java.util.Locale
 
 class ConversationsAdapter(
     private val onConversationClick: (Conversation) -> Unit,
-    private val onConversationLongClick: (Conversation) -> Unit
+    private val onConversationLongClick: (Conversation) -> Unit,
+    private val onConversationMenuClick: (Conversation) -> Unit
 ) : ListAdapter<Conversation, ConversationsAdapter.ConversationViewHolder>(DIFF_CALLBACK) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ConversationViewHolder {
@@ -74,10 +75,13 @@ class ConversationsAdapter(
             bindAvatar(conversation)
 
             // Interactions
-            binding.root.setOnClickListener { onConversationClick(conversation) }
-            binding.root.setOnLongClickListener {
+            binding.conversationClickArea.setOnClickListener { onConversationClick(conversation) }
+            binding.conversationClickArea.setOnLongClickListener {
                 onConversationLongClick(conversation)
                 true
+            }
+            binding.btnConversationMenu.setOnClickListener {
+                onConversationMenuClick(conversation)
             }
         }
 

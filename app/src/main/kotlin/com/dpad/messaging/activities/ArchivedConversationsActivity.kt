@@ -30,7 +30,8 @@ class ArchivedConversationsActivity : AppCompatActivity() {
 
         adapter = ConversationsAdapter(
             onConversationClick = { openThread(it) },
-            onConversationLongClick = { showUnarchiveMenu(it) }
+            onConversationLongClick = { showUnarchiveMenu(it) },
+            onConversationMenuClick = { showUnarchiveMenu(it) }
         )
         binding.rvConversations.apply {
             this.adapter = this@ArchivedConversationsActivity.adapter

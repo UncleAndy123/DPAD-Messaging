@@ -9,7 +9,6 @@ import android.os.Bundle
 import android.provider.Telephony
 import android.view.KeyEvent
 import android.view.View
-import android.widget.PopupMenu
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import android.app.Activity
@@ -94,7 +93,8 @@ class MainActivity : AppCompatActivity() {
     private fun setupConversationList() {
         conversationsAdapter = ConversationsAdapter(
             onConversationClick = { conversation -> openThread(conversation) },
-            onConversationLongClick = { conversation -> showConversationContextMenu(conversation) }
+            onConversationLongClick = { conversation -> showConversationContextMenu(conversation) },
+            onConversationMenuClick = { conversation -> showConversationContextMenu(conversation) }
         )
 
         binding.rvConversations.apply {
@@ -247,26 +247,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showOverflowMenu() {
-        val popup = PopupMenu(this, binding.btnOverflow)
-        popup.menuInflater.inflate(R.menu.menu_main, popup.menu)
-        popup.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                R.id.action_archived -> {
-                    startActivity(Intent(this, ArchivedConversationsActivity::class.java))
-                    true
+        val options = arrayOf(
+            getString(R.string.archived),
+            getString(R.string.recycle_bin),
+            getString(R.string.settings)
+        )
+
+        AlertDialog.Builder(this)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> startActivity(Intent(this, ArchivedConversationsActivity::class.java))
+                    1 -> startActivity(Intent(this, RecycleBinActivity::class.java))
+                    2 -> startActivity(Intent(this, SettingsActivity::class.java))
                 }
-                R.id.action_recycle_bin -> {
-                    startActivity(Intent(this, RecycleBinActivity::class.java))
-                    true
-                }
-                R.id.action_settings -> {
-                    startActivity(Intent(this, SettingsActivity::class.java))
-                    true
-                }
-                else -> false
             }
-        }
-        popup.show()
+            .show()
     }
 
     // ─── Conversation actions ───────────────────────────────────────────────

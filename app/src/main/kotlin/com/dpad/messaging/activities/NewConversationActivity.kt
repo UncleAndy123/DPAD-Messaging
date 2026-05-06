@@ -1,20 +1,20 @@
 package com.dpad.messaging.activities
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.KeyEvent
-import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.dpad.messaging.R
 import com.dpad.messaging.databinding.ActivityNewConversationBinding
-import com.dpad.messaging.helpers.ContactHelper
 import com.dpad.messaging.App
+import com.dpad.messaging.helpers.MmsSender
+import com.dpad.messaging.helpers.Prefs
 import com.dpad.messaging.helpers.SmsSender
+import android.provider.Telephony
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -85,7 +85,7 @@ class NewConversationActivity : AppCompatActivity() {
     }
 
     private fun updateSendButton() {
-        val ready = binding.etRecipient.text?.isNotBlank() == true &&
+        val ready = parseRecipients(binding.etRecipient.text?.toString().orEmpty()).isNotEmpty() &&
                     binding.etMessage.text?.isNotBlank() == true
         binding.btnSend.isEnabled = ready
         binding.btnSend.setColorFilter(
@@ -95,30 +95,53 @@ class NewConversationActivity : AppCompatActivity() {
     }
 
     private fun sendAndOpen() {
-        val recipient = binding.etRecipient.text?.toString()?.trim() ?: return
+        val recipients = parseRecipients(binding.etRecipient.text?.toString().orEmpty())
         val body = binding.etMessage.text?.toString()?.trim() ?: return
-        if (recipient.isBlank() || body.isBlank()) return
+        if (recipients.isEmpty() || body.isBlank()) return
 
         // Resolve thread ID first, then send and open the thread.
         lifecycleScope.launch {
             val threadId = withContext(Dispatchers.IO) {
-                resolveOrCreateThreadId(recipient)
+                resolveOrCreateThreadId(recipients)
             }
             if (threadId != null) {
                 // Send in background; ThreadActivity will reload and show the outbox row.
                 withContext(Dispatchers.IO) {
-                    SmsSender.send(
-                        context     = this@NewConversationActivity,
-                        phoneNumber = recipient,
-                        body        = body,
-                        threadId    = threadId
-                    )
+                    val isGroup = recipients.size > 1
+                    if (isGroup && Prefs.get().sendGroupMessageMms) {
+                        MmsSender.send(
+                            context = this@NewConversationActivity,
+                            recipients = recipients,
+                            body = body,
+                            imageUri = null,
+                            threadId = threadId
+                        )
+                    } else if (isGroup) {
+                        recipients.forEach { recipient ->
+                            SmsSender.send(
+                                context = this@NewConversationActivity,
+                                phoneNumber = recipient,
+                                body = body,
+                                threadId = threadId
+                            )
+                        }
+                    } else {
+                        SmsSender.send(
+                            context = this@NewConversationActivity,
+                            phoneNumber = recipients.first(),
+                            body = body,
+                            threadId = threadId
+                        )
+                    }
                 }
                 val intent = Intent(this@NewConversationActivity, ThreadActivity::class.java).apply {
                     putExtra(ThreadActivity.EXTRA_THREAD_ID, threadId)
-                    putExtra(ThreadActivity.EXTRA_THREAD_TITLE,
-                        App.get().contactHelper.getDisplayName(recipient))
-                    putExtra(ThreadActivity.EXTRA_PHONE_NUMBER, recipient)
+                    val title = recipients.joinToString(", ") { App.get().contactHelper.getDisplayName(it) }
+                    putExtra(ThreadActivity.EXTRA_THREAD_TITLE, title)
+                    putExtra(ThreadActivity.EXTRA_PHONE_NUMBER, recipients.first())
+                    if (recipients.size > 1) {
+                        putExtra(ThreadActivity.EXTRA_PARTICIPANTS, recipients.joinToString(","))
+                    }
                 }
                 startActivity(intent)
                 finish()
@@ -133,21 +156,27 @@ class NewConversationActivity : AppCompatActivity() {
     }
 
     /**
-     * Returns the existing thread ID for [phoneNumber] from the Telephony provider,
-     * or null if the number is invalid/unreachable.
+     * Returns the existing or created thread ID for one-to-one or group recipients.
      *
      * Phase 2: call SmsManager.sendTextMessage() here before returning the thread ID.
      */
-    private fun resolveOrCreateThreadId(phoneNumber: String): Long? {
+    private fun resolveOrCreateThreadId(recipients: List<String>): Long? {
         return try {
-            val uri = Uri.parse("content://mms-sms/threadID")
-            val queryUri = Uri.withAppendedPath(uri, Uri.encode(phoneNumber))
-            contentResolver.query(queryUri, arrayOf("_id"), null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) cursor.getLong(0) else null
+            if (recipients.size == 1) {
+                Telephony.Threads.getOrCreateThreadId(this, recipients.first())
+            } else {
+                Telephony.Threads.getOrCreateThreadId(this, recipients.toSet())
             }
         } catch (e: Exception) {
             null
         }
+    }
+
+    private fun parseRecipients(raw: String): List<String> {
+        return raw.split(',', ';', '\n')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
     }
 
     // Handles text/plain and image-type ACTION_SEND shares, or forward-message pre-fills.

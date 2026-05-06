@@ -37,11 +37,11 @@ class ThreadAdapter(
                 old is ThreadItem.DateHeader && new is ThreadItem.DateHeader ->
                     old.date == new.date
                 old is ThreadItem.SentMessage && new is ThreadItem.SentMessage ->
-                    old.message.id == new.message.id
+                    old.message.id == new.message.id && old.message.isMms == new.message.isMms
                 old is ThreadItem.ReceivedMessage && new is ThreadItem.ReceivedMessage ->
-                    old.message.id == new.message.id
+                    old.message.id == new.message.id && old.message.isMms == new.message.isMms
                 old is ThreadItem.SendingMessage && new is ThreadItem.SendingMessage ->
-                    old.message.id == new.message.id
+                    old.message.id == new.message.id && old.message.isMms == new.message.isMms
                 else -> false
             }
             override fun areContentsTheSame(old: ThreadItem, new: ThreadItem) = old == new

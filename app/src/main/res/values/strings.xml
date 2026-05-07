@@ -28,6 +28,7 @@
     <!-- ─── Thread / Compose ─── -->
     <string name="type_message">Type a message…</string>
     <string name="send">Send</string>
+    <string name="next">Next</string>
     <string name="attach">Attach</string>
     <string name="sending">Sending…</string>
     <string name="message_failed">Failed to send. Tap to retry.</string>

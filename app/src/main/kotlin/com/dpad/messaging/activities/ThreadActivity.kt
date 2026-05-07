@@ -111,6 +111,7 @@ class ThreadActivity : AppCompatActivity() {
         setupToolbar()
         setupMessageList()
         setupComposeBar()
+        applyPrefillAttachmentFromIntent(intent)
         loadSimInfo()
         loadMessages()
     }
@@ -321,6 +322,14 @@ class ThreadActivity : AppCompatActivity() {
         binding.attachmentPreviewBar.visibility = View.GONE
         Glide.with(this).clear(binding.ivAttachmentPreview)
         updateSendButtonState()
+    }
+
+    private fun applyPrefillAttachmentFromIntent(intent: Intent?) {
+        val uriString = intent?.getStringExtra(EXTRA_PREFILL_ATTACHMENT_URI)
+        if (uriString.isNullOrBlank()) return
+        val uri = Uri.parse(uriString)
+        pendingAttachmentUri = uri
+        showAttachmentPreview(uri)
     }
 
     // ─── Send button state ──────────────────────────────────────────────────
@@ -654,6 +663,7 @@ class ThreadActivity : AppCompatActivity() {
         const val EXTRA_THREAD_ID    = "extra_thread_id"
         const val EXTRA_THREAD_TITLE = "extra_thread_title"
         const val EXTRA_PHONE_NUMBER = "extra_phone_number"
+        const val EXTRA_PREFILL_ATTACHMENT_URI = "extra_prefill_attachment_uri"
         /** Comma-separated participant numbers; present for group threads. */
         const val EXTRA_PARTICIPANTS = "extra_participants"
     }

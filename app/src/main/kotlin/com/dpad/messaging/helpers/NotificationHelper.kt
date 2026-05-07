@@ -91,8 +91,10 @@ object NotificationHelper {
         )
 
         // ── Build & post ──────────────────────────────────────────────────────
+        val accentColor = ThemeManager.accentColor(context)
         val builder = NotificationCompat.Builder(context, App.CHANNEL_MESSAGES)
             .setSmallIcon(R.drawable.ic_new_message)
+            .setColor(accentColor)
             .setContentTitle(senderName)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -107,6 +109,7 @@ object NotificationHelper {
             // Show only sender on lock screen; body is hidden.
             val publicNotif = NotificationCompat.Builder(context, App.CHANNEL_MESSAGES)
                 .setSmallIcon(R.drawable.ic_new_message)
+                .setColor(accentColor)
                 .setContentTitle(senderName)
                 .setContentText(context.getString(R.string.new_message))
                 .build()

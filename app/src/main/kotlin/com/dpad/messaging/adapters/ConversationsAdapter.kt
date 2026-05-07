@@ -92,6 +92,7 @@ class ConversationsAdapter(
             binding.btnConversationMenu.setOnClickListener {
                 onConversationMenuClick(conversation)
             }
+            binding.btnConversationMenu.tag = conversation.threadId
         }
 
         private fun bindAvatar(conversation: Conversation) {

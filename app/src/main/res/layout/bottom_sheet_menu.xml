@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bottom sheet menu for overflow actions -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/menu_items_container"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/colorSurface"
+    android:paddingTop="@dimen/padding_medium"
+    android:paddingBottom="@dimen/padding_large">
+
+    <!-- Handle bar -->
+    <View
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="@dimen/padding_medium"
+        android:background="@drawable/bottom_sheet_handle" />
+
+    <!-- Menu items added programmatically -->
+
+</LinearLayout>

@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.provider.Telephony
 import android.view.KeyEvent
 import android.view.View
+import android.widget.PopupMenu
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import android.app.Activity
@@ -251,51 +252,52 @@ class MainActivity : AppCompatActivity() {
     // ─── Context menus ──────────────────────────────────────────────────────
 
     private fun showConversationContextMenu(conversation: Conversation) {
-        val isMuted = Prefs.get().isThreadMuted(conversation.threadId)
-        val options = arrayOf(
-            if (conversation.read) getString(R.string.mark_as_unread)
-            else getString(R.string.mark_as_read),
-            if (conversation.pinned) getString(R.string.unpin) else getString(R.string.pin),
-            if (conversation.archived) getString(R.string.unarchive)
-            else getString(R.string.archive),
-            if (isMuted) getString(R.string.unmute_conversation)
-            else getString(R.string.mute_conversation),
-            getString(R.string.copy_number),
-            getString(R.string.move_to_recycle_bin)
-        )
+        // Find the anchor view - use the conversation menu button
+        val anchor = binding.rvConversations.findViewWithTag<View>(conversation.threadId)
 
-        AlertDialog.Builder(this)
-            .setTitle(conversation.title)
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> toggleReadState(conversation)
-                    1 -> togglePin(conversation)
-                    2 -> toggleArchive(conversation)
-                    3 -> toggleMute(conversation)
-                    4 -> copyNumber(conversation.phoneNumber)
-                    5 -> moveToRecycleBin(conversation)
-                }
+        val popup = PopupMenu(this, anchor ?: binding.rvConversations)
+        popup.menu.apply {
+            add(0, 1, 0, if (conversation.read) getString(R.string.mark_as_unread) else getString(R.string.mark_as_read))
+            add(0, 2, 1, if (conversation.pinned) getString(R.string.unpin) else getString(R.string.pin))
+            add(0, 3, 2, if (conversation.archived) getString(R.string.unarchive) else getString(R.string.archive))
+            add(0, 4, 3, if (Prefs.get().isThreadMuted(conversation.threadId)) getString(R.string.unmute_conversation) else getString(R.string.mute_conversation))
+            add(0, 5, 4, getString(R.string.copy_number))
+            add(0, 6, 5, getString(R.string.move_to_recycle_bin))
+        }
+
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                1 -> toggleReadState(conversation)
+                2 -> togglePin(conversation)
+                3 -> toggleArchive(conversation)
+                4 -> toggleMute(conversation)
+                5 -> copyNumber(conversation.phoneNumber)
+                6 -> moveToRecycleBin(conversation)
             }
-            .create()
-            .show()
+            true
+        }
+
+        popup.show()
     }
 
     private fun showOverflowMenu() {
-        val options = arrayOf(
-            getString(R.string.archived),
-            getString(R.string.recycle_bin),
-            getString(R.string.settings)
-        )
+        val popup = PopupMenu(this, binding.btnOverflow)
+        popup.menu.apply {
+            add(0, 1, 0, getString(R.string.archived))
+            add(0, 2, 1, getString(R.string.recycle_bin))
+            add(0, 3, 2, getString(R.string.settings))
+        }
 
-        AlertDialog.Builder(this)
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> startActivity(Intent(this, ArchivedConversationsActivity::class.java))
-                    1 -> startActivity(Intent(this, RecycleBinActivity::class.java))
-                    2 -> startActivity(Intent(this, SettingsActivity::class.java))
-                }
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                1 -> startActivity(Intent(this, ArchivedConversationsActivity::class.java))
+                2 -> startActivity(Intent(this, RecycleBinActivity::class.java))
+                3 -> startActivity(Intent(this, SettingsActivity::class.java))
             }
-            .show()
+            true
+        }
+
+        popup.show()
     }
 
     // ─── Conversation actions ───────────────────────────────────────────────

@@ -32,9 +32,18 @@ class ConversationDetailsActivity : AppCompatActivity() {
         threadId     = intent.getLongExtra(ThreadActivity.EXTRA_THREAD_ID, -1L)
         currentTitle = intent.getStringExtra(ThreadActivity.EXTRA_THREAD_TITLE) ?: ""
         val phoneNumber = intent.getStringExtra(ThreadActivity.EXTRA_PHONE_NUMBER) ?: ""
+        val participants = intent.getStringExtra(ThreadActivity.EXTRA_PARTICIPANTS)
+            ?.split(",")
+            ?.map { it.trim() }
+            ?.filter { it.isNotBlank() }
+            ?: emptyList()
 
         binding.tvContactName.text = currentTitle
-        binding.tvPhoneNumber.text = phoneNumber
+        binding.tvPhoneNumber.text = if (participants.size > 1) {
+            participants.joinToString("\n") { App.get().contactHelper.getDisplayName(it) }
+        } else {
+            phoneNumber
+        }
 
         binding.btnBack.setOnClickListener { finish() }
 
@@ -45,7 +54,8 @@ class ConversationDetailsActivity : AppCompatActivity() {
         binding.btnBlock.nextFocusUpId    = binding.btnRename.id
 
         binding.btnRename.setOnClickListener { showRenameDialog() }
-        binding.btnBlock.setOnClickListener  { showBlockConfirmation(phoneNumber) }
+        val blockTarget = participants.firstOrNull() ?: phoneNumber
+        binding.btnBlock.setOnClickListener  { showBlockConfirmation(blockTarget) }
     }
 
     private fun showRenameDialog() {

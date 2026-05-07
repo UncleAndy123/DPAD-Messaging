@@ -33,6 +33,8 @@ import com.dpad.messaging.extensions.getMessagesForThread
 import com.dpad.messaging.extensions.markThreadAsReadInTelephony
 import com.dpad.messaging.helpers.MmsSender
 import com.dpad.messaging.helpers.Prefs
+import com.dpad.messaging.helpers.SendingMode
+import com.dpad.messaging.helpers.SendingRouter
 import com.dpad.messaging.helpers.SmsSender
 import com.dpad.messaging.models.Message
 import com.dpad.messaging.models.RecycleBinMessage
@@ -67,7 +69,7 @@ class ThreadActivity : AppCompatActivity() {
     /** URI of the image the user has selected but not yet sent. Null when no pending attachment. */
     private var pendingAttachmentUri: Uri? = null
 
-    private lateinit var imagePickerLauncher: ActivityResultLauncher<String>
+    private lateinit var attachmentPickerLauncher: ActivityResultLauncher<Array<String>>
 
     // ─── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -86,10 +88,18 @@ class ThreadActivity : AppCompatActivity() {
         if (threadId == -1L) { finish(); return }
 
         // Register before setupComposeBar() (must be called before onStart)
-        imagePickerLauncher = registerForActivityResult(
-            ActivityResultContracts.GetContent()
+        attachmentPickerLauncher = registerForActivityResult(
+            ActivityResultContracts.OpenDocument()
         ) { uri ->
             if (uri != null) {
+                try {
+                    contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) {
+                    // Not all providers offer persistable permissions.
+                }
                 pendingAttachmentUri = uri
                 showAttachmentPreview(uri)
             }
@@ -118,7 +128,12 @@ class ThreadActivity : AppCompatActivity() {
     // ─── Setup ─────────────────────────────────────────────────────────────
 
     private fun setupToolbar() {
-        binding.tvContactName.text = threadTitle
+        val titleForToolbar = if (participants.size > 1) {
+            participants.joinToString(", ") { App.get().contactHelper.getDisplayName(it) }
+        } else {
+            threadTitle
+        }
+        binding.tvContactName.text = titleForToolbar
 
         binding.btnBack.setOnClickListener { finish() }
 
@@ -134,6 +149,7 @@ class ThreadActivity : AppCompatActivity() {
                 putExtra(EXTRA_THREAD_ID, threadId)
                 putExtra(EXTRA_THREAD_TITLE, threadTitle)
                 putExtra(EXTRA_PHONE_NUMBER, phoneNumber)
+                putExtra(EXTRA_PARTICIPANTS, participants.joinToString(","))
             }
             startActivity(intent)
         }
@@ -236,7 +252,9 @@ class ThreadActivity : AppCompatActivity() {
 
         // Open image picker
         binding.btnAttach.setOnClickListener {
-            imagePickerLauncher.launch("image/*")
+            attachmentPickerLauncher.launch(
+                arrayOf("image/*", "audio/*", "text/x-vcard", "text/vcard", "application/vcard")
+            )
         }
 
         // Restore any saved draft
@@ -258,10 +276,15 @@ class ThreadActivity : AppCompatActivity() {
 
     private fun showAttachmentPreview(uri: Uri) {
         binding.attachmentPreviewBar.visibility = View.VISIBLE
-        Glide.with(this)
-            .load(uri)
-            .centerCrop()
-            .into(binding.ivAttachmentPreview)
+        val mimeType = contentResolver.getType(uri)?.lowercase().orEmpty()
+        if (mimeType.startsWith("image/")) {
+            Glide.with(this)
+                .load(uri)
+                .centerCrop()
+                .into(binding.ivAttachmentPreview)
+        } else {
+            binding.ivAttachmentPreview.setImageResource(R.drawable.ic_attach)
+        }
         updateSendButtonState()
     }
 
@@ -361,60 +384,56 @@ class ThreadActivity : AppCompatActivity() {
         binding.etMessage.requestFocus()
 
         lifecycleScope.launch(Dispatchers.IO) {
-            val isGroup = participants.size > 1
             val hasAttachment = attachment != null
-            val sendGroupTextAsMms = Prefs.get().sendGroupMessageMms
+            val mode = SendingRouter.decideSendingMode(
+                hasAttachment = hasAttachment,
+                recipientCount = participants.size,
+                sendGroupMessageMms = Prefs.get().sendGroupMessageMms
+            )
             
-            when {
-                // Attachment (image/video) → always send as group MMS
-                hasAttachment && isGroup -> {
+            when (mode) {
+                SendingMode.MMS_GROUP -> {
+                    Log.d("DPAD_MSG", "ThreadActivity.sendMessage() routing: MMS_GROUP")
                     MmsSender.send(
                         context        = this@ThreadActivity,
                         recipients     = participants,
                         body           = body,
-                        imageUri       = attachment,
+                        attachmentUri  = attachment,
                         threadId       = threadId,
                         subscriptionId = selectedSubId
                     )
                 }
-                // Text-only group → optional group MMS to keep a single thread together.
-                !hasAttachment && isGroup && sendGroupTextAsMms -> {
-                    Log.d("DPAD_MSG", "ThreadActivity.sendMessage() text-only group: sending as group MMS to keep thread together")
-                    MmsSender.send(
-                        context        = this@ThreadActivity,
-                        recipients     = participants,
-                        body           = body,
-                        imageUri       = null,
-                        threadId       = threadId,
-                        subscriptionId = selectedSubId
-                    )
-                }
-                // Text-only group → send as individual SMS to each recipient (more compatible)
-                !hasAttachment && isGroup -> {
-                    Log.d("DPAD_MSG", "ThreadActivity.sendMessage() text-only group: sending individual SMS to ${participants.size} recipients")
-                    for (recipient in participants) {
-                        SmsSender.send(
-                            context        = this@ThreadActivity,
-                            phoneNumber    = recipient,
-                            body           = body,
-                            threadId       = threadId,
-                            subscriptionId = selectedSubId
-                        )
-                    }
-                }
-                // 1:1 with attachment → send as MMS
-                hasAttachment && !isGroup -> {
+                SendingMode.MMS_SINGLE -> {
+                    Log.d("DPAD_MSG", "ThreadActivity.sendMessage() routing: MMS_SINGLE")
                     MmsSender.send(
                         context        = this@ThreadActivity,
                         recipients     = listOf(phoneNumber),
                         body           = body,
-                        imageUri       = attachment,
+                        attachmentUri  = attachment,
                         threadId       = threadId,
                         subscriptionId = selectedSubId
                     )
                 }
-                // 1:1 text-only → send as SMS
-                else -> {
+                SendingMode.SMS_FANOUT_GROUP -> {
+                    Log.d("DPAD_MSG", "ThreadActivity.sendMessage() routing: SMS_FANOUT_GROUP to ${participants.size} recipients")
+                    for (recipient in participants) {
+                        val recipientThreadId = try {
+                            Telephony.Threads.getOrCreateThreadId(this@ThreadActivity, recipient)
+                        } catch (e: Exception) {
+                            Log.w("DPAD_MSG", "ThreadActivity: failed to resolve threadId for $recipient", e)
+                            threadId  // fallback to group threadId
+                        }
+                        SmsSender.send(
+                            context        = this@ThreadActivity,
+                            phoneNumber    = recipient,
+                            body           = body,
+                            threadId       = recipientThreadId,
+                            subscriptionId = selectedSubId
+                        )
+                    }
+                }
+                SendingMode.SMS_SINGLE -> {
+                    Log.d("DPAD_MSG", "ThreadActivity.sendMessage() routing: SMS_SINGLE")
                     SmsSender.send(
                         context        = this@ThreadActivity,
                         phoneNumber    = phoneNumber,

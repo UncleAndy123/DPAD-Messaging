@@ -50,7 +50,7 @@
             android:layout_weight="1"
             android:ellipsize="end"
             android:focusable="false"
-            android:maxLines="1"
+            android:maxLines="2"
             android:paddingStart="@dimen/padding_small"
             android:paddingEnd="@dimen/padding_small"
             android:textColor="@color/toolbarText"

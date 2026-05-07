@@ -92,6 +92,23 @@
             android:textColorHint="@color/composeHint"
             android:textSize="@dimen/text_size_normal" />
 
+            <TextView
+                android:id="@+id/btn_add_recipient"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="@dimen/padding_small"
+                android:background="@drawable/button_focusable_bg"
+                android:contentDescription="@string/add_recipient"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:gravity="center"
+                android:nextFocusUp="@id/btn_back"
+                android:nextFocusDown="@id/et_message"
+                android:text="+"
+                android:textColor="@color/colorOnBackground"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
     </LinearLayout>
 
     <!-- Divider -->
@@ -131,7 +148,27 @@
         android:background="@color/composeBg"
         android:gravity="center_vertical|end"
         android:orientation="horizontal"
+        android:paddingStart="@dimen/compose_padding"
         android:paddingEnd="@dimen/compose_padding">
+
+        <ImageButton
+            android:id="@+id/btn_attach"
+            android:layout_width="@dimen/compose_button_size"
+            android:layout_height="@dimen/compose_button_size"
+            android:background="@drawable/button_focusable_bg"
+            android:contentDescription="@string/attach"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:nextFocusUp="@id/et_message"
+            android:nextFocusRight="@id/btn_send"
+            android:scaleType="center"
+            android:src="@drawable/ic_attach"
+            android:tint="@color/colorOnBackground" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
 
         <ImageButton
             android:id="@+id/btn_send"
@@ -142,6 +179,7 @@
             android:enabled="false"
             android:focusable="true"
             android:focusableInTouchMode="true"
+            android:nextFocusLeft="@id/btn_attach"
             android:nextFocusUp="@id/et_message"
             android:scaleType="center"
             android:src="@drawable/ic_send"

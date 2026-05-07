@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DPAD Messages</string>
+    <string name="app_name">DPAD SMS</string>
 
     <!-- ─── Navigation / Actions ─── -->
     <string name="new_conversation">New</string>
@@ -59,7 +59,8 @@
     <string name="participants">Participants</string>
     <string name="rename_conversation">Rename Conversation</string>
     <string name="enter_name">Enter name…</string>
-    <string name="enter_recipients_hint">Enter numbers, separated by commas</string>
+    <string name="enter_recipients_hint">Add recipients with + or type a number</string>
+    <string name="add_recipient">Add recipient</string>
 
     <!-- ─── Permissions ─── -->
     <string name="permission_sms_title">SMS Permission Needed</string>
@@ -123,6 +124,7 @@
     <string name="error_loading_conversations">Error loading conversations.</string>
     <string name="error_loading_messages">Error loading messages.</string>
     <string name="error_sending_message">Failed to send message.</string>
+    <string name="error_picking_contact">Could not read selected contact.</string>
 
     <!-- ─── SIM / Dual-SIM ─── -->
     <string name="select_sim">Select SIM</string>

@@ -2,6 +2,7 @@
 <data-extraction-rules>
     <cloud-backup>
         <include domain="sharedpref" path="." />
+        <include domain="database" path="." />
         <exclude domain="database" path="dpad_messages.db" />
     </cloud-backup>
     <device-transfer>

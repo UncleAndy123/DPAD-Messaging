@@ -1,20 +1,27 @@
 package com.dpad.messaging.activities
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Telephony
+import android.provider.ContactsContract
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.view.KeyEvent
 import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.dpad.messaging.App
 import com.dpad.messaging.R
 import com.dpad.messaging.databinding.ActivityNewConversationBinding
-import com.dpad.messaging.App
 import com.dpad.messaging.helpers.MmsSender
 import com.dpad.messaging.helpers.Prefs
+import com.dpad.messaging.helpers.SendingMode
+import com.dpad.messaging.helpers.SendingRouter
 import com.dpad.messaging.helpers.SmsSender
-import android.provider.Telephony
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -30,11 +37,40 @@ import kotlinx.coroutines.withContext
 class NewConversationActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityNewConversationBinding
+    private var pendingAttachmentUri: Uri? = null
+
+    private lateinit var contactPickerLauncher: ActivityResultLauncher<Void?>
+    private lateinit var attachmentPickerLauncher: ActivityResultLauncher<Array<String>>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityNewConversationBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        contactPickerLauncher = registerForActivityResult(
+            ActivityResultContracts.PickContact()
+        ) { uri ->
+            if (uri != null) {
+                addPickedContact(uri)
+            }
+        }
+
+        attachmentPickerLauncher = registerForActivityResult(
+            ActivityResultContracts.OpenDocument()
+        ) { uri ->
+            if (uri != null) {
+                try {
+                    contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) {
+                    // Not all providers offer persistable permissions.
+                }
+                pendingAttachmentUri = uri
+                updateSendButton()
+            }
+        }
 
         setupToolbar()
         setupInputs()
@@ -47,7 +83,7 @@ class NewConversationActivity : AppCompatActivity() {
         // D-Pad DOWN from back button → recipient field
         binding.btnBack.setOnKeyListener { _, keyCode, event ->
             if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && event.action == KeyEvent.ACTION_DOWN) {
-                binding.etRecipient.requestFocus()
+                binding.btnAddRecipient.requestFocus()
                 true
             } else false
         }
@@ -62,6 +98,16 @@ class NewConversationActivity : AppCompatActivity() {
         }
         binding.etRecipient.addTextChangedListener(watcher)
         binding.etMessage.addTextChangedListener(watcher)
+
+        binding.btnAddRecipient.setOnClickListener {
+            contactPickerLauncher.launch(null)
+        }
+
+        binding.btnAttach.setOnClickListener {
+            attachmentPickerLauncher.launch(
+                arrayOf("image/*", "audio/*", "text/x-vcard", "text/vcard", "application/vcard")
+            )
+        }
 
         binding.btnSend.setOnClickListener { sendAndOpen() }
 
@@ -85,8 +131,10 @@ class NewConversationActivity : AppCompatActivity() {
     }
 
     private fun updateSendButton() {
-        val ready = parseRecipients(binding.etRecipient.text?.toString().orEmpty()).isNotEmpty() &&
-                    binding.etMessage.text?.isNotBlank() == true
+        val hasRecipients = parseRecipients(binding.etRecipient.text?.toString().orEmpty()).isNotEmpty()
+        val hasBody = binding.etMessage.text?.isNotBlank() == true
+        val hasAttachment = pendingAttachmentUri != null
+        val ready = hasRecipients && (hasBody || hasAttachment)
         binding.btnSend.isEnabled = ready
         binding.btnSend.setColorFilter(
             if (ready) getColor(R.color.sendButtonEnabled)
@@ -96,8 +144,9 @@ class NewConversationActivity : AppCompatActivity() {
 
     private fun sendAndOpen() {
         val recipients = parseRecipients(binding.etRecipient.text?.toString().orEmpty())
-        val body = binding.etMessage.text?.toString()?.trim() ?: return
-        if (recipients.isEmpty() || body.isBlank()) return
+        val body = binding.etMessage.text?.toString()?.trim().orEmpty()
+        val attachment = pendingAttachmentUri
+        if (recipients.isEmpty() || (body.isBlank() && attachment == null)) return
 
         // Resolve thread ID first, then send and open the thread.
         lifecycleScope.launch {
@@ -107,31 +156,58 @@ class NewConversationActivity : AppCompatActivity() {
             if (threadId != null) {
                 // Send in background; ThreadActivity will reload and show the outbox row.
                 withContext(Dispatchers.IO) {
-                    val isGroup = recipients.size > 1
-                    if (isGroup && Prefs.get().sendGroupMessageMms) {
-                        MmsSender.send(
-                            context = this@NewConversationActivity,
-                            recipients = recipients,
-                            body = body,
-                            imageUri = null,
-                            threadId = threadId
-                        )
-                    } else if (isGroup) {
-                        recipients.forEach { recipient ->
+                    val hasAttachment = attachment != null
+                    val mode = SendingRouter.decideSendingMode(
+                        hasAttachment = hasAttachment,
+                        recipientCount = recipients.size,
+                        sendGroupMessageMms = Prefs.get().sendGroupMessageMms
+                    )
+                    when (mode) {
+                        SendingMode.MMS_GROUP -> {
+                            MmsSender.send(
+                                context = this@NewConversationActivity,
+                                recipients = recipients,
+                                body = body,
+                                attachmentUri = attachment,
+                                threadId = threadId
+                            )
+                        }
+                        SendingMode.MMS_SINGLE -> {
+                            MmsSender.send(
+                                context = this@NewConversationActivity,
+                                recipients = listOf(recipients.first()),
+                                body = body,
+                                attachmentUri = attachment,
+                                threadId = threadId
+                            )
+                        }
+                        SendingMode.SMS_FANOUT_GROUP -> {
+                            recipients.forEach { recipient ->
+                                val recipientThreadId = try {
+                                    Telephony.Threads.getOrCreateThreadId(this@NewConversationActivity, recipient)
+                                } catch (e: Exception) {
+                                    Log.w("DPAD_MSG", "NewConversationActivity: failed to resolve threadId for $recipient", e)
+                                    threadId  // fallback to group threadId
+                                }
+                                SmsSender.send(
+                                    context = this@NewConversationActivity,
+                                    phoneNumber = recipient,
+                                    body = body,
+                                    threadId = recipientThreadId
+                                )
+                            }
+                        }
+                        SendingMode.SMS_SINGLE -> {
                             SmsSender.send(
                                 context = this@NewConversationActivity,
-                                phoneNumber = recipient,
+                                phoneNumber = recipients.first(),
                                 body = body,
                                 threadId = threadId
                             )
                         }
-                    } else {
-                        SmsSender.send(
-                            context = this@NewConversationActivity,
-                            phoneNumber = recipients.first(),
-                            body = body,
-                            threadId = threadId
-                        )
+                        else -> {
+                            // Should not occur for text-only
+                        }
                     }
                 }
                 val intent = Intent(this@NewConversationActivity, ThreadActivity::class.java).apply {
@@ -179,6 +255,32 @@ class NewConversationActivity : AppCompatActivity() {
             .distinct()
     }
 
+    private fun addPickedContact(contactUri: Uri) {
+        val projection = arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER)
+        val phoneNumber = try {
+            contentResolver.query(contactUri, projection, null, null, null)?.use { cursor ->
+                val idx = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                if (idx >= 0 && cursor.moveToFirst()) cursor.getString(idx) else null
+            }
+        } catch (e: Exception) {
+            Log.w("DPAD_MSG", "NewConversationActivity: unable to read selected contact", e)
+            null
+        }
+
+        if (phoneNumber.isNullOrBlank()) {
+            Toast.makeText(this, R.string.error_picking_contact, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val current = parseRecipients(binding.etRecipient.text?.toString().orEmpty()).toMutableList()
+        if (!current.contains(phoneNumber)) {
+            current.add(phoneNumber)
+            binding.etRecipient.setText(current.joinToString(", "))
+            binding.etRecipient.setSelection(binding.etRecipient.text?.length ?: 0)
+            updateSendButton()
+        }
+    }
+
     // Handles text/plain and image-type ACTION_SEND shares, or forward-message pre-fills.
     private fun handleIncomingIntent(intent: Intent?) {
         if (intent == null) return
@@ -188,6 +290,11 @@ class NewConversationActivity : AppCompatActivity() {
                 if (!text.isNullOrBlank()) {
                     binding.etMessage.setText(text)
                     binding.etMessage.setSelection(text.length)
+                }
+                val stream = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+                if (stream != null) {
+                    pendingAttachmentUri = stream
+                    updateSendButton()
                 }
             }
             else -> {

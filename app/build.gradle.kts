@@ -10,17 +10,27 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.dpad.messaging"
+        applicationId = "com.dpadsms"
         minSdk = 23
         targetSdk = 34
         versionCode = 1
-        versionName = "1.0.0"
+        versionName = "0.0.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

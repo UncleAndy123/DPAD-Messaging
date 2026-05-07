@@ -3,15 +3,15 @@ package com.dpad.messaging.helpers
 import java.io.ByteArrayOutputStream
 
 /**
- * Composes a WAP binary MMS M-Send-Req PDU for a message containing one text
- * part and an optional image part.
- *
- * Encoding references:
- *  • WAP-230-WSP-20010705 (WSP spec) — header field encoding, uintvar, multipart
- *  • OMA-MMS-ENC-V1_3 (MMS Encapsulation spec) — M-Send-Req header fields
- *
- * Only the codes documented in the project's Critical Context section are used;
- * these have been verified against the AOSP MmsService implementation.
+ * DEPRECATED - Phase 2 refactor complete.
+ * 
+ * This custom PDU composer is no longer used. All MMS sends are now unified through
+ * mmslib Transaction, which handles PDU composition internally.
+ * 
+ * This file is retained for reference during the transition period and can be
+ * safely deleted after Phase 2 is verified on devices.
+ * 
+ * See: MmsSender.kt for the new unified mmslib-based implementation.
  */
 object MmsPduComposer {
 

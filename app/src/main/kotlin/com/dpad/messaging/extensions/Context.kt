@@ -9,6 +9,7 @@ import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
 import com.dpad.messaging.helpers.ContactHelper
 import com.dpad.messaging.helpers.MmsHelper
+import com.dpad.messaging.helpers.Prefs
 import com.dpad.messaging.models.Conversation
 import com.dpad.messaging.models.Message
 
@@ -57,11 +58,15 @@ fun Context.getOwnPhoneNumbers(): Set<String> {
  * resolves contact names, and returns them sorted pinned-first then date-desc.
  *
  * @param pinnedThreadIds Set of thread IDs that the user has pinned.
+ * @param archivedThreadIds Set of thread IDs to exclude (archived). When null, reads from Prefs.
  */
 fun Context.getConversationsFromTelephony(
     contactHelper: ContactHelper,
-    pinnedThreadIds: Set<Long> = emptySet()
+    pinnedThreadIds: Set<Long> = emptySet(),
+    archivedThreadIds: Set<Long>? = null,
+    mutedThreadIds: Set<Long> = emptySet()
 ): List<Conversation> {
+    val excluded = archivedThreadIds ?: Prefs.get().getArchivedThreadIds()
     val uri = Uri.parse("content://mms-sms/conversations?simple=true")
     val projection = arrayOf(
         Telephony.Threads._ID,
@@ -86,6 +91,7 @@ fun Context.getConversationsFromTelephony(
 
                 while (cursor.moveToNext()) {
                     val threadId = cursor.getLong(idxId)
+                    if (threadId in excluded) continue  // skip archived threads
                     val recipientIds = cursor.getString(idxRecipients) ?: continue
                     val snippet = cursor.getString(idxSnippet) ?: ""
                     val date = cursor.getLong(idxDate)
@@ -122,6 +128,8 @@ fun Context.getConversationsFromTelephony(
                             read = read,
                             isGroupConversation = isGroup,
                             pinned = threadId in pinnedThreadIds,
+                            archived = threadId in excluded,
+                            muted = threadId in mutedThreadIds,
                             participants = phoneNumbers.joinToString(",")
                         )
                     )

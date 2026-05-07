@@ -40,6 +40,9 @@ data class Conversation(
     @ColumnInfo(name = "pinned")
     val pinned: Boolean = false,
 
+    @ColumnInfo(name = "muted")
+    val muted: Boolean = false,
+
     @ColumnInfo(name = "uses_custom_title")
     val usesCustomTitle: Boolean = false,
 

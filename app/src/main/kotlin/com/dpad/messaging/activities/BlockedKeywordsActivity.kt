@@ -27,7 +27,7 @@ import kotlinx.coroutines.withContext
  * First row is always "Add Keyword" (navRow).
  * Each existing keyword is a row that shows a delete dialog on ENTER/click.
  */
-class BlockedKeywordsActivity : AppCompatActivity() {
+class BlockedKeywordsActivity : BaseActivity() {
 
     private lateinit var binding: ActivityBlockedKeywordsBinding
 

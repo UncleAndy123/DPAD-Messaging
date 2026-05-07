@@ -34,7 +34,7 @@ import com.dpad.messaging.helpers.ThemeManager
  *   Storage:   Use Recycle Bin
  *   Other:     Notifications, About
  */
-class SettingsActivity : AppCompatActivity() {
+class SettingsActivity : BaseActivity() {
 
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var prefs: Prefs
@@ -147,6 +147,28 @@ class SettingsActivity : AppCompatActivity() {
                 getString(R.string.time_24h)
             ),
             setValue     = { prefs.timeFormat = it }
+        )
+        valueRow(
+            container    = c,
+            label        = getString(R.string.ui_scale),
+            summary      = getString(R.string.ui_scale_summary),
+            getValue     = { prefs.uiScale },
+            optionValues = listOf(
+                Prefs.UI_SCALE_COMPACT,
+                Prefs.UI_SCALE_NORMAL,
+                Prefs.UI_SCALE_LARGE,
+                Prefs.UI_SCALE_XLARGE
+            ),
+            optionLabels = listOf(
+                getString(R.string.ui_scale_compact),
+                getString(R.string.ui_scale_normal),
+                getString(R.string.ui_scale_large),
+                getString(R.string.ui_scale_xlarge)
+            ),
+            setValue     = {
+                prefs.uiScale = it
+                recreate()
+            }
         )
 
         // ── Messaging ────────────────────────────────────────────────────────

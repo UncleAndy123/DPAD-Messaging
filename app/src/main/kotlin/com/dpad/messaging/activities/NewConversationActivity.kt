@@ -36,7 +36,7 @@ import kotlinx.coroutines.withContext
  *
  * D-Pad flow: Back → et_recipient → et_message → btn_send
  */
-class NewConversationActivity : AppCompatActivity() {
+class NewConversationActivity : BaseActivity() {
 
     private lateinit var binding: ActivityNewConversationBinding
     private var pendingAttachmentUri: Uri? = null

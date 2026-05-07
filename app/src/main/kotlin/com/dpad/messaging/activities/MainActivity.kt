@@ -36,7 +36,7 @@ import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : BaseActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var conversationsAdapter: ConversationsAdapter
@@ -107,7 +107,7 @@ class MainActivity : AppCompatActivity() {
         conversationsAdapter = ConversationsAdapter(
             onConversationClick = { conversation -> openThread(conversation) },
             onConversationLongClick = { conversation -> showConversationContextMenu(conversation) },
-            onConversationMenuClick = { conversation -> showConversationContextMenu(conversation) }
+            onConversationMenuClick = { _, conversation -> showConversationContextMenu(conversation) }
         )
 
         binding.rvConversations.apply {
@@ -166,7 +166,8 @@ class MainActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
-        binding.etSearch.setOnEditorActionListener { _, _, _ -> false }
+        binding.etSearch.setOnEditorActionListener { _, _, _ -> true  // consume — don't navigate away
+        }
     }
 
     // ─── Data loading ───────────────────────────────────────────────────────
@@ -177,7 +178,8 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val conversations = withContext(Dispatchers.IO) {
                 val pinnedIds = Prefs.get().getPinnedThreadIds()
-                getConversationsFromTelephony(App.get().contactHelper, pinnedIds)
+                val mutedIds  = Prefs.get().getMutedThreadIds()
+                getConversationsFromTelephony(App.get().contactHelper, pinnedIds, mutedThreadIds = mutedIds)
             }
             displayConversations(conversations)
         }
@@ -317,11 +319,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun toggleArchive(conversation: Conversation) {
-        lifecycleScope.launch(Dispatchers.IO) {
-            App.get().database.conversationsDao().setArchived(
-                conversation.threadId, !conversation.archived
-            )
-        }
+        Prefs.get().setThreadArchived(conversation.threadId, !conversation.archived)
         loadConversations()
     }
 
@@ -344,9 +342,47 @@ class MainActivity : AppCompatActivity() {
             .setMessage(conversation.title)
             .setPositiveButton(R.string.yes) { _, _ ->
                 lifecycleScope.launch(Dispatchers.IO) {
-                    App.get().database.conversationsDao().deleteConversation(conversation.threadId)
+                    val threadId = conversation.threadId
+                    // If recycle bin is enabled, snapshot all SMS messages before deleting
+                    if (Prefs.get().recycleBinEnabled) {
+                        val cursor = contentResolver.query(
+                            android.net.Uri.parse("content://sms"),
+                            arrayOf("_id", "address", "body", "date"),
+                            "thread_id = ?",
+                            arrayOf(threadId.toString()),
+                            "date ASC"
+                        )
+                        cursor?.use { c ->
+                            val idCol   = c.getColumnIndexOrThrow("_id")
+                            val addrCol = c.getColumnIndexOrThrow("address")
+                            val bodyCol = c.getColumnIndexOrThrow("body")
+                            val dateCol = c.getColumnIndexOrThrow("date")
+                            while (c.moveToNext()) {
+                                val msgId  = c.getLong(idCol)
+                                val addr   = c.getString(addrCol) ?: ""
+                                val body   = c.getString(bodyCol) ?: ""
+                                val date   = c.getLong(dateCol)
+                                val name   = App.get().contactHelper.getDisplayName(addr)
+                                App.get().database.messagesDao().insertRecycleBinMessage(
+                                    com.dpad.messaging.models.RecycleBinMessage(
+                                        id         = msgId,
+                                        address    = addr,
+                                        senderName = name,
+                                        body       = body,
+                                        date       = date
+                                    )
+                                )
+                            }
+                        }
+                    }
+                    // Delete the conversation from Telephony
+                    val uri = android.net.Uri.parse("content://mms-sms/conversations/$threadId")
+                    try { contentResolver.delete(uri, null, null) } catch (_: Exception) {}
+                    // Clean up any state prefs for this thread
+                    Prefs.get().setThreadArchived(threadId, false)
+                    Prefs.get().setThreadPinned(threadId, false)
+                    withContext(Dispatchers.Main) { loadConversations() }
                 }
-                loadConversations()
             }
             .setNegativeButton(R.string.no, null)
             .show()

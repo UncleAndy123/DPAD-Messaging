@@ -105,6 +105,12 @@
     <string name="time_format_summary">12-hour or 24-hour clock</string>
     <string name="time_12h">12-hour (1:30 PM)</string>
     <string name="time_24h">24-hour (13:30)</string>
+    <string name="ui_scale">UI Text Size</string>
+    <string name="ui_scale_summary">Adjust text size for your screen</string>
+    <string name="ui_scale_compact">Compact (smaller)</string>
+    <string name="ui_scale_normal">Normal</string>
+    <string name="ui_scale_large">Large</string>
+    <string name="ui_scale_xlarge">Extra Large</string>
     <string name="attach_image_audio">Image / Audio</string>
     <string name="attach_contact">Contact</string>
     <string name="messaging">Messaging</string>

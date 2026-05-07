@@ -19,7 +19,7 @@ import kotlinx.coroutines.withContext
  * Phase 4: rename persists via Room conversationsDao.setCustomTitle();
  *           block inserts a BlockedKeyword row so SmsReceiver suppresses notifications.
  */
-class ConversationDetailsActivity : AppCompatActivity() {
+class ConversationDetailsActivity : BaseActivity() {
 
     private lateinit var binding: ActivityConversationDetailsBinding
 

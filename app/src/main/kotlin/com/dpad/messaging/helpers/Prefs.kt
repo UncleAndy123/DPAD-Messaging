@@ -25,10 +25,12 @@ class Prefs private constructor(context: Context) {
         private const val KEY_RECYCLE_BIN_ENABLED = "recycle_bin_enabled"
         private const val KEY_MUTED_THREADS       = "muted_threads"
         private const val KEY_PINNED_THREADS      = "pinned_threads"
+        private const val KEY_ARCHIVED_THREADS    = "archived_threads"
         private const val KEY_APP_THEME_MODE      = "app_theme_mode"
         private const val KEY_APP_ACCENT          = "app_accent"
         private const val KEY_DATE_FORMAT         = "date_format"
         private const val KEY_TIME_FORMAT         = "time_format"
+        private const val KEY_UI_SCALE            = "ui_scale"
 
         const val PRIVACY_FULL        = "full"
         const val PRIVACY_SENDER_ONLY = "sender_only"
@@ -43,6 +45,10 @@ class Prefs private constructor(context: Context) {
         const val DATE_FORMAT_DMY     = "DMY"   // dd/MM/yy  (European)
         const val TIME_FORMAT_12H     = "12h"   // h:mm a
         const val TIME_FORMAT_24H     = "24h"   // HH:mm
+        const val UI_SCALE_COMPACT    = "compact"   // 0.85x
+        const val UI_SCALE_NORMAL     = "normal"    // 1.0x  (default)
+        const val UI_SCALE_LARGE      = "large"     // 1.25x
+        const val UI_SCALE_XLARGE     = "xlarge"    // 1.5x
 
         @Volatile private var instance: Prefs? = null
 
@@ -121,6 +127,12 @@ class Prefs private constructor(context: Context) {
         return muted.contains(threadId.toString())
     }
 
+    /** Returns the set of all muted thread IDs. */
+    fun getMutedThreadIds(): Set<Long> {
+        return (prefs.getStringSet(KEY_MUTED_THREADS, emptySet()) ?: emptySet())
+            .mapNotNull { it.toLongOrNull() }.toSet()
+    }
+
     /** Enables or disables notifications for [threadId]. */
     fun setThreadMuted(threadId: Long, muted: Boolean) {
         val current = prefs.getStringSet(KEY_MUTED_THREADS, emptySet())?.toMutableSet()
@@ -149,5 +161,39 @@ class Prefs private constructor(context: Context) {
     fun getPinnedThreadIds(): Set<Long> {
         return (prefs.getStringSet(KEY_PINNED_THREADS, emptySet()) ?: emptySet())
             .mapNotNull { it.toLongOrNull() }.toSet()
+    }
+
+    /** Returns true when [threadId] is archived. */
+    fun isThreadArchived(threadId: Long): Boolean {
+        val archived = prefs.getStringSet(KEY_ARCHIVED_THREADS, emptySet()) ?: emptySet()
+        return archived.contains(threadId.toString())
+    }
+
+    /** Archives or un-archives [threadId]. */
+    fun setThreadArchived(threadId: Long, archived: Boolean) {
+        val current = prefs.getStringSet(KEY_ARCHIVED_THREADS, emptySet())?.toMutableSet()
+            ?: mutableSetOf()
+        val key = threadId.toString()
+        if (archived) current.add(key) else current.remove(key)
+        prefs.edit().putStringSet(KEY_ARCHIVED_THREADS, current).apply()
+    }
+
+    /** Returns the full set of archived thread IDs. */
+    fun getArchivedThreadIds(): Set<Long> {
+        return (prefs.getStringSet(KEY_ARCHIVED_THREADS, emptySet()) ?: emptySet())
+            .mapNotNull { it.toLongOrNull() }.toSet()
+    }
+
+    /** UI scale preference. One of [UI_SCALE_COMPACT], [UI_SCALE_NORMAL], [UI_SCALE_LARGE], [UI_SCALE_XLARGE]. */
+    var uiScale: String
+        get() = prefs.getString(KEY_UI_SCALE, UI_SCALE_NORMAL) ?: UI_SCALE_NORMAL
+        set(v) = prefs.edit().putString(KEY_UI_SCALE, v).apply()
+
+    /** UI scale as a float multiplier applied to the system font scale. */
+    val uiScaleFactor: Float get() = when (uiScale) {
+        UI_SCALE_COMPACT -> 0.85f
+        UI_SCALE_LARGE   -> 1.25f
+        UI_SCALE_XLARGE  -> 1.5f
+        else             -> 1.0f
     }
 }

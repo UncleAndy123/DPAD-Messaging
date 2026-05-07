@@ -50,7 +50,7 @@ import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 
-class ThreadActivity : AppCompatActivity() {
+class ThreadActivity : BaseActivity() {
 
     private lateinit var binding: ActivityThreadBinding
     private lateinit var threadAdapter: ThreadAdapter
@@ -186,10 +186,11 @@ class ThreadActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
-        // D-Pad DOWN from any toolbar button → focus the message list
+        // D-Pad DOWN from any toolbar button → focus the message list (or compose bar when empty)
         val goToMessages = View.OnKeyListener { _, keyCode, event ->
             if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && event.action == KeyEvent.ACTION_DOWN) {
-                binding.rvMessages.focusLastItem()
+                if (threadAdapter.itemCount > 0) binding.rvMessages.focusLastItem()
+                else binding.etMessage.requestFocus()
                 true
             } else false
         }
@@ -243,23 +244,25 @@ class ThreadActivity : AppCompatActivity() {
     }
 
     private fun setupComposeBar() {
-        // D-Pad UP from compose → message list
+        // D-Pad UP from compose → message list (or back button when list is empty)
+        val goUpFromCompose = { ->
+            if ((threadAdapter.itemCount) > 0) binding.rvMessages.focusLastItem()
+            else binding.btnBack.requestFocus()
+        }
         binding.etMessage.setOnKeyListener { _, keyCode, event ->
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP && event.action == KeyEvent.ACTION_DOWN) {
-                binding.rvMessages.focusLastItem()
-                true
+                goUpFromCompose(); true
             } else false
         }
         binding.btnAttach.setOnKeyListener { _, keyCode, event ->
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP && event.action == KeyEvent.ACTION_DOWN) {
-                binding.rvMessages.focusLastItem()
-                true
+                goUpFromCompose(); true
             } else false
         }
         binding.btnSend.setOnKeyListener { _, keyCode, event ->
             when {
                 keyCode == KeyEvent.KEYCODE_DPAD_UP && event.action == KeyEvent.ACTION_DOWN -> {
-                    binding.rvMessages.focusLastItem(); true
+                    goUpFromCompose(); true
                 }
                 // Wrap right → SIM button if visible, else wrap to attach
                 keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && event.action == KeyEvent.ACTION_DOWN &&
@@ -271,8 +274,7 @@ class ThreadActivity : AppCompatActivity() {
         }
         binding.btnSim.setOnKeyListener { _, keyCode, event ->
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP && event.action == KeyEvent.ACTION_DOWN) {
-                binding.rvMessages.focusLastItem()
-                true
+                goUpFromCompose(); true
             } else false
         }
         binding.btnSim.setOnClickListener { showSimPicker() }

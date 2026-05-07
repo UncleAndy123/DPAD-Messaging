@@ -16,7 +16,7 @@ import com.dpad.messaging.models.*
         RecycleBinMessage::class,
         BlockedKeyword::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class MessagesDatabase : RoomDatabase() {

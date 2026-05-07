@@ -5,20 +5,21 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
-import androidx.appcompat.app.AppCompatActivity
+import android.widget.PopupMenu
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.dpad.messaging.App
 import com.dpad.messaging.adapters.ConversationsAdapter
 import com.dpad.messaging.databinding.ActivityArchivedBinding
 import com.dpad.messaging.extensions.getConversationsFromTelephony
+import com.dpad.messaging.helpers.Prefs
 import com.dpad.messaging.helpers.ThemeManager
 import com.dpad.messaging.models.Conversation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class ArchivedConversationsActivity : AppCompatActivity() {
+class ArchivedConversationsActivity : BaseActivity() {
 
     private lateinit var binding: ActivityArchivedBinding
     private lateinit var adapter: ConversationsAdapter
@@ -33,8 +34,8 @@ class ArchivedConversationsActivity : AppCompatActivity() {
 
         adapter = ConversationsAdapter(
             onConversationClick = { openThread(it) },
-            onConversationLongClick = { showUnarchiveMenu(it) },
-            onConversationMenuClick = { showUnarchiveMenu(it) }
+            onConversationLongClick = { showUnarchiveMenu(binding.root, it) },
+            onConversationMenuClick = { view, conversation -> showUnarchiveMenu(view, conversation) }
         )
         binding.rvConversations.apply {
             this.adapter = this@ArchivedConversationsActivity.adapter
@@ -70,26 +71,35 @@ class ArchivedConversationsActivity : AppCompatActivity() {
 
     private fun loadArchivedConversations() {
         lifecycleScope.launch {
-            // Phase 2: filter archived flag from Room; for Phase 1 show empty state
+            val archivedIds = Prefs.get().getArchivedThreadIds()
+            if (archivedIds.isEmpty()) {
+                adapter.submitList(emptyList())
+                binding.tvEmpty.visibility = View.VISIBLE
+                return@launch
+            }
             val archived = withContext(Dispatchers.IO) {
-                App.get().database.conversationsDao().getArchivedConversations()
+                // Pass all archived IDs as "pinned" = none; pass archived IDs as archivedThreadIds=none
+                // so excluded filter is empty, but set includeOnly to the archived IDs.
+                getConversationsFromTelephony(
+                    App.get().contactHelper,
+                    pinnedThreadIds = Prefs.get().getPinnedThreadIds(),
+                    archivedThreadIds = emptySet()   // don't exclude — we WANT archived ones
+                ).filter { it.threadId in archivedIds }
             }
             adapter.submitList(archived)
             binding.tvEmpty.visibility = if (archived.isEmpty()) View.VISIBLE else View.GONE
         }
     }
 
-    private fun showUnarchiveMenu(conversation: Conversation) {
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(conversation.title)
-            .setItems(arrayOf(getString(com.dpad.messaging.R.string.unarchive))) { _, _ ->
-                lifecycleScope.launch(Dispatchers.IO) {
-                    App.get().database.conversationsDao()
-                        .setArchived(conversation.threadId, false)
-                }
-                loadArchivedConversations()
-            }
-            .show()
+    private fun showUnarchiveMenu(anchor: View, conversation: Conversation) {
+        val popup = PopupMenu(this, anchor)
+        popup.menu.add(0, 0, 0, getString(com.dpad.messaging.R.string.unarchive))
+        popup.setOnMenuItemClickListener {
+            Prefs.get().setThreadArchived(conversation.threadId, false)
+            loadArchivedConversations()
+            true
+        }
+        popup.show()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -97,3 +107,4 @@ class ArchivedConversationsActivity : AppCompatActivity() {
         return super.onKeyDown(keyCode, event)
     }
 }
+

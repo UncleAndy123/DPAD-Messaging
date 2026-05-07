@@ -1,5 +1,6 @@
 package com.dpad.messaging.adapters
 
+import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.view.LayoutInflater
 import android.view.View
@@ -10,6 +11,7 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.dpad.messaging.R
 import com.dpad.messaging.databinding.ItemConversationBinding
+import com.dpad.messaging.helpers.ThemeManager
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -33,7 +35,8 @@ data class RecycledItem(
  */
 class RecycleBinAdapter(
     private val onItemClick: (RecycledItem) -> Unit,
-    private val onItemLongClick: (RecycledItem) -> Unit
+    private val onItemLongClick: (RecycledItem) -> Unit,
+    private val onItemMenuClick: (RecycledItem) -> Unit
 ) : ListAdapter<RecycledItem, RecycleBinAdapter.ViewHolder>(DIFF_CALLBACK) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -52,6 +55,9 @@ class RecycleBinAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(item: RecycledItem) {
+            val accent = ThemeManager.accentColor(binding.root.context)
+            val tint   = ColorStateList.valueOf(accent)
+
             binding.tvName.text = item.senderName
             binding.tvName.setTypeface(null, Typeface.NORMAL)
 
@@ -63,9 +69,15 @@ class RecycleBinAdapter(
 
             binding.tvDate.text = formatDate(item.date)
 
-            // No unread badge or pin in recycle bin
+            // No unread badge, pin or mute in recycle bin
             binding.tvUnreadCount.visibility = View.GONE
             binding.ivPinned.visibility = View.GONE
+            binding.ivMuted.visibility = View.GONE
+
+            // Accent tinting
+            binding.btnConversationMenu.imageTintList = tint
+            binding.btnConversationMenu.backgroundTintList = tint
+            binding.conversationClickArea.backgroundTintList = tint
 
             // Avatar — letter-only (no photo lookup for deleted messages)
             binding.ivAvatar.visibility = View.GONE
@@ -74,8 +86,9 @@ class RecycleBinAdapter(
             binding.tvAvatarLetter.text = initial
             binding.tvAvatarLetter.background.setTint(avatarColor(item.phoneNumber))
 
-            binding.root.setOnClickListener { onItemClick(item) }
-            binding.root.setOnLongClickListener { onItemLongClick(item); true }
+            binding.conversationClickArea.setOnClickListener { onItemClick(item) }
+            binding.conversationClickArea.setOnLongClickListener { onItemLongClick(item); true }
+            binding.btnConversationMenu.setOnClickListener { onItemMenuClick(item) }
         }
 
         private fun avatarColor(seed: String): Int {

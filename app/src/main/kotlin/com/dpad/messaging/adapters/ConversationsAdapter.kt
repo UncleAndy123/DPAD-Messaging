@@ -24,7 +24,7 @@ import java.util.Locale
 class ConversationsAdapter(
     private val onConversationClick: (Conversation) -> Unit,
     private val onConversationLongClick: (Conversation) -> Unit,
-    private val onConversationMenuClick: (Conversation) -> Unit
+    private val onConversationMenuClick: (View, Conversation) -> Unit
 ) : ListAdapter<Conversation, ConversationsAdapter.ConversationViewHolder>(DIFF_CALLBACK) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ConversationViewHolder {
@@ -78,8 +78,7 @@ class ConversationsAdapter(
             binding.ivPinned.imageTintList = ColorStateList.valueOf(accent)
 
             // Mute indicator
-            val muted = Prefs.get().isThreadMuted(conversation.threadId)
-            binding.ivMuted.visibility = if (muted) View.VISIBLE else View.GONE
+            binding.ivMuted.visibility = if (conversation.muted) View.VISIBLE else View.GONE
             binding.ivMuted.imageTintList = ColorStateList.valueOf(accent)
 
             val tint = ColorStateList.valueOf(accent)
@@ -97,7 +96,7 @@ class ConversationsAdapter(
                 true
             }
             binding.btnConversationMenu.setOnClickListener {
-                onConversationMenuClick(conversation)
+                onConversationMenuClick(it, conversation)
             }
             binding.btnConversationMenu.tag = conversation.threadId
         }

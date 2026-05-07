@@ -9,7 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
  * Exists separately so we can add onboarding / permission checks later
  * without touching MainActivity's launch flow.
  */
-class SplashActivity : AppCompatActivity() {
+class SplashActivity : BaseActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

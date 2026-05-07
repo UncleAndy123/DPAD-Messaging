@@ -81,4 +81,4 @@ Handles SMS message sending via SmsManager.
 
 ## License
 
-Proprietary - All rights reserved
+MIT License - See [LICENSE](LICENSE) file for details.

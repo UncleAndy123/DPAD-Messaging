@@ -84,8 +84,15 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         EventBus.getDefault().register(this)
         applyAccent()
-        loadConversations()
+        refreshConversationList()
         checkDefaultSmsApp()
+    }
+
+    private fun refreshConversationList() {
+        if (::conversationsAdapter.isInitialized) {
+            conversationsAdapter.notifyDataSetChanged()
+        }
+        loadConversations()
     }
 
     override fun onPause() {
@@ -137,15 +144,16 @@ class MainActivity : AppCompatActivity() {
         val accent = ThemeManager.accentColor(this)
         val tint = ColorStateList.valueOf(accent)
 
-        binding.btnNewConversation.imageTintList = tint
-        binding.btnSearch.imageTintList = tint
-        binding.btnOverflow.imageTintList = tint
-        binding.btnSearchClose.imageTintList = tint
-
-        binding.btnNewConversation.backgroundTintList = tint
-        binding.btnSearch.backgroundTintList = tint
-        binding.btnOverflow.backgroundTintList = tint
-        binding.btnSearchClose.backgroundTintList = tint
+        listOf(
+            binding.btnNewConversation,
+            binding.btnSearch,
+            binding.btnOverflow,
+            binding.btnSearchClose
+        ).forEach { button ->
+            button.imageTintList = tint
+            button.background?.mutate()?.setTintList(tint)
+            button.invalidate()
+        }
     }
 
     private fun setupSearch() {

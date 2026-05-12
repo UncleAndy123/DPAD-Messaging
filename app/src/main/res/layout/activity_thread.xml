@@ -134,11 +134,31 @@
             android:focusableInTouchMode="true"
             android:src="@drawable/ic_close"
             android:nextFocusUp="@id/rv_messages"
-            android:nextFocusDown="@id/btn_attach"
+            android:nextFocusDown="@id/chips_container"
             android:nextFocusLeft="@id/btn_remove_attachment"
             android:nextFocusRight="@id/btn_remove_attachment" />
 
     </LinearLayout>
+
+    <!-- ─── Number Chips Container (for DPAD-based number quick-selection) ──── -->
+    <HorizontalScrollView
+        android:id="@+id/chips_container_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/composeBg"
+        android:scrollbars="none"
+        android:visibility="gone">
+        <LinearLayout
+            android:id="@+id/chips_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="@dimen/compose_padding"
+            android:paddingEnd="@dimen/compose_padding"
+            android:paddingTop="@dimen/padding_tiny"
+            android:paddingBottom="@dimen/padding_tiny" />
+    </HorizontalScrollView>
 
     <!-- ─── Compose Bar ───────────────────────────────────────────────────── -->
     <LinearLayout
@@ -166,7 +186,7 @@
             android:src="@drawable/ic_attach"
             android:nextFocusLeft="@id/btn_send"
             android:nextFocusRight="@id/et_message"
-            android:nextFocusUp="@id/btn_remove_attachment" />
+            android:nextFocusUp="@id/chips_container_scroll" />
 
         <!-- Message compose field -->
         <EditText

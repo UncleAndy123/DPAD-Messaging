@@ -245,10 +245,14 @@ class ThreadActivity : BaseActivity() {
 
     private fun setupComposeBar() {
         // D-Pad UP from compose:
-        // 1) If an attachment is visible, go to the remove-attachment button first.
-        // 2) Otherwise go to the message list (or back button when list is empty).
+        // 1) If chips are visible, go to the chips container.
+        // 2) If an attachment is visible, go to the remove-attachment button.
+        // 3) Otherwise go to the message list (or back button when list is empty).
         val goUpFromCompose = { ->
-            if (binding.attachmentPreviewBar.visibility == View.VISIBLE) {
+            if (binding.chipsContainerScroll.visibility == View.VISIBLE) {
+                binding.chipsContainer.getChildAt(binding.chipsContainer.childCount - 1)?.requestFocus()
+                    ?: binding.chipsContainerScroll.requestFocus()
+            } else if (binding.attachmentPreviewBar.visibility == View.VISIBLE) {
                 binding.btnRemoveAttachment.requestFocus()
             } else if (threadAdapter.itemCount > 0) {
                 binding.rvMessages.focusLastItem()
@@ -257,9 +261,16 @@ class ThreadActivity : BaseActivity() {
             }
         }
         binding.etMessage.setOnKeyListener { _, keyCode, event ->
-            if (keyCode == KeyEvent.KEYCODE_DPAD_UP && event.action == KeyEvent.ACTION_DOWN) {
-                goUpFromCompose(); true
-            } else false
+            when {
+                keyCode == KeyEvent.KEYCODE_DPAD_UP && event.action == KeyEvent.ACTION_DOWN -> {
+                    goUpFromCompose(); true
+                }
+                // DPAD CENTER: extract numbers and create chips
+                keyCode == KeyEvent.KEYCODE_DPAD_CENTER && event.action == KeyEvent.ACTION_DOWN -> {
+                    createNumberChip(); true
+                }
+                else -> false
+            }
         }
         binding.btnAttach.setOnKeyListener { _, keyCode, event ->
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP && event.action == KeyEvent.ACTION_DOWN) {
@@ -382,16 +393,101 @@ class ThreadActivity : BaseActivity() {
         showAttachmentPreview(uri)
     }
 
+    // ─── Number chips ──────────────────────────────────────────────────────
+
+    /**
+     * Extracts numbers from the compose input and converts them into visual chips.
+     * When DPAD center is pressed, any digits in the input are converted to a chip
+     * and the number is removed from the text.
+     */
+    private fun createNumberChip() {
+        val text = binding.etMessage.text?.toString() ?: ""
+        if (text.isEmpty()) return
+
+        // Extract all numbers from the text
+        val numbers = text.filter { it.isDigit() }
+        if (numbers.isEmpty()) return
+
+        // Create a chip for the number
+        addNumberChip(numbers)
+
+        // Remove the numbers from the input
+        val cleanedText = text.filter { !it.isDigit() }.trim()
+        binding.etMessage.setText(cleanedText)
+        if (cleanedText.isNotEmpty()) {
+            binding.etMessage.setSelection(cleanedText.length)
+        }
+        updateSendButtonState()
+    }
+
+    /**
+     * Adds a visual chip for the given number to the chips container.
+     */
+    private fun addNumberChip(number: String) {
+        val chipView = android.widget.Button(this).apply {
+            text = number
+            isAllCaps = false
+            textSize = 12f
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                marginEnd = 6.dpToPx()
+                marginStart = 6.dpToPx()
+            }
+            background = getDrawable(R.drawable.button_focusable_bg)
+            setTextColor(getColor(R.color.toolbarText))
+            setOnClickListener { removeNumberChip(this, number) }
+            isFocusable = true
+            isFocusableInTouchMode = true
+            contentDescription = getString(R.string.tap_to_remove_number, number)
+        }
+
+        binding.chipsContainer.addView(chipView)
+
+        // Show the chips container
+        if (binding.chipsContainerScroll.visibility != View.VISIBLE) {
+            binding.chipsContainerScroll.visibility = View.VISIBLE
+            // Update the attachment preview bar to point to chips container instead of compose
+            binding.btnRemoveAttachment.nextFocusDownId = R.id.chips_container_scroll
+        }
+    }
+
+    /**
+     * Removes a number chip and restores it to the input.
+     */
+    private fun removeNumberChip(chipView: View, number: String) {
+        binding.chipsContainer.removeView(chipView)
+
+        // If no more chips, hide the container
+        if (binding.chipsContainer.childCount == 0) {
+            binding.chipsContainerScroll.visibility = View.GONE
+            binding.btnRemoveAttachment.nextFocusDownId = R.id.btn_attach
+        }
+
+        // Restore the number to the input
+        val currentText = binding.etMessage.text?.toString() ?: ""
+        binding.etMessage.setText("$currentText $number".trim())
+        binding.etMessage.setSelection(binding.etMessage.text?.length ?: 0)
+        updateSendButtonState()
+    }
+
+    /**
+     * Extension function to convert DP to pixels.
+     */
+    private fun Int.dpToPx(): Int = (this * resources.displayMetrics.density).toInt()
+
     // ─── Send button state ──────────────────────────────────────────────────
 
     /**
-     * Enables the send button when there is text OR a pending attachment.
+     * Enables the send button when there is text OR a pending attachment OR chips.
      * Also updates the character counter for SMS segment tracking.
      */
     private fun updateSendButtonState() {
         val hasText       = binding.etMessage.text?.isNotBlank() == true
         val hasAttachment = pendingAttachmentUri != null
-        val enabled       = hasText || hasAttachment
+        val hasChips      = binding.chipsContainer.childCount > 0
+        val enabled       = hasText || hasAttachment || hasChips
         val accentColor   = ThemeManager.accentColor(this)
 
         binding.btnSend.isEnabled = enabled
@@ -443,7 +539,22 @@ class ThreadActivity : BaseActivity() {
     }
 
     private fun saveDraft() {
-        val body = binding.etMessage.text?.toString() ?: ""
+        var body = binding.etMessage.text?.toString() ?: ""
+        
+        // Include chips in the draft
+        val chipNumbers = mutableListOf<String>()
+        for (i in 0 until binding.chipsContainer.childCount) {
+            val chipButton = binding.chipsContainer.getChildAt(i) as? android.widget.Button
+            chipButton?.text?.toString()?.let { chipNumbers.add(it) }
+        }
+        if (chipNumbers.isNotEmpty()) {
+            body = if (body.isNotBlank()) {
+                "$body ${chipNumbers.joinToString(" ")}"
+            } else {
+                chipNumbers.joinToString(" ")
+            }
+        }
+        
         lifecycleScope.launch(Dispatchers.IO) {
             val dao = App.get().database.draftsDao()
             if (body.isBlank()) {
@@ -459,8 +570,22 @@ class ThreadActivity : BaseActivity() {
     // ─── Send ────────────────────────────────────────────────────────────────
 
     private fun sendMessage() {
-        val body       = binding.etMessage.text?.toString()?.trim() ?: ""
+        var body       = binding.etMessage.text?.toString()?.trim() ?: ""
         val attachment = pendingAttachmentUri
+
+        // Collect numbers from chips and append to message
+        val chipNumbers = mutableListOf<String>()
+        for (i in 0 until binding.chipsContainer.childCount) {
+            val chipButton = binding.chipsContainer.getChildAt(i) as? android.widget.Button
+            chipButton?.text?.toString()?.let { chipNumbers.add(it) }
+        }
+        if (chipNumbers.isNotEmpty()) {
+            body = if (body.isNotBlank()) {
+                "$body ${chipNumbers.joinToString(" ")}"
+            } else {
+                chipNumbers.joinToString(" ")
+            }
+        }
 
         if (body.isBlank() && attachment == null) return
         if (phoneNumber.isBlank() && participants.isEmpty()) return
@@ -468,6 +593,8 @@ class ThreadActivity : BaseActivity() {
         Log.d("DPAD_MSG", "ThreadActivity.sendMessage() body='${body.take(20)}' attachment=${attachment != null} participants=$participants isGroup=${participants.size > 1}")
 
         binding.etMessage.text?.clear()
+        binding.chipsContainer.removeAllViews()
+        binding.chipsContainerScroll.visibility = View.GONE
         clearAttachment()
         binding.etMessage.requestFocus()
 

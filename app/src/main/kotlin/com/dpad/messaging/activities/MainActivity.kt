@@ -30,6 +30,8 @@ import com.dpad.messaging.helpers.Prefs
 import com.dpad.messaging.helpers.ThemeManager
 import com.dpad.messaging.models.Conversation
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
@@ -41,6 +43,9 @@ class MainActivity : BaseActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var conversationsAdapter: ConversationsAdapter
     private lateinit var requestRoleLauncher: ActivityResultLauncher<Intent>
+
+    /** Debounce job for search filtering — cancels and reschedules on each keystroke */
+    private var searchDebounceJob: Job? = null
 
     private val requiredPermissions = buildList {
         add(Manifest.permission.READ_SMS)
@@ -159,13 +164,42 @@ class MainActivity : BaseActivity() {
 
     private fun setupSearch() {
         binding.btnSearchClose.setOnClickListener { hideSearch() }
+        
+        // TextWatcher with debounce: waits 500ms after user stops typing before searching
         binding.etSearch.addTextChangedListener(object : android.text.TextWatcher {
             override fun afterTextChanged(s: android.text.Editable?) {
-                filterConversations(s?.toString() ?: "")
+                // Cancel previous search job
+                searchDebounceJob?.cancel()
+                
+                // Schedule a new search after 500ms of no input
+                searchDebounceJob = lifecycleScope.launch {
+                    delay(500)  // Wait 500ms after user stops typing
+                    filterConversations(s?.toString() ?: "")
+                }
             }
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
+        
+        // DPAD CENTER: trigger search immediately without waiting for debounce
+        binding.etSearch.setOnKeyListener { _, keyCode, event ->
+            when {
+                keyCode == KeyEvent.KEYCODE_DPAD_CENTER && event.action == KeyEvent.ACTION_DOWN -> {
+                    // Cancel pending debounce and search immediately
+                    searchDebounceJob?.cancel()
+                    filterConversations(binding.etSearch.text?.toString() ?: "")
+                    true
+                }
+                keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN -> {
+                    // ENTER key also triggers search immediately
+                    searchDebounceJob?.cancel()
+                    filterConversations(binding.etSearch.text?.toString() ?: "")
+                    true
+                }
+                else -> false
+            }
+        }
+        
         binding.etSearch.setOnEditorActionListener { _, _, _ -> true  // consume — don't navigate away
         }
     }
@@ -200,8 +234,9 @@ class MainActivity : BaseActivity() {
     }
 
     private fun filterConversations(query: String) {
-        // Phase 2: Full search — for now just client-side title/snippet filter
+        // Search only executes if query is at least 2 characters (or user pressed DPAD CENTER)
         if (query.length < 2) {
+            // Show all conversations when search is cleared or too short
             loadConversations()
             return
         }

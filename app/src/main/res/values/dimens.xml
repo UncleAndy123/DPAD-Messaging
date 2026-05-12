@@ -22,13 +22,17 @@
     <dimen name="unread_badge_text_size">9sp</dimen>
 
     <!-- ─── Message Bubbles ─── -->
-    <dimen name="bubble_padding_h">8dp</dimen>
-    <dimen name="bubble_padding_v">5dp</dimen>
+    <!-- Padding in sp units to scale with font size, preventing clipping in large/extra large modes -->
+    <dimen name="bubble_padding_h">10sp</dimen>
+    <dimen name="bubble_padding_v">6sp</dimen>
     <dimen name="bubble_corner_radius">10dp</dimen>
     <dimen name="bubble_max_width_fraction">0.78</dimen>  <!-- 78% of screen width -->
     <dimen name="bubble_margin_h">4dp</dimen>
     <dimen name="bubble_margin_v">2dp</dimen>
     <dimen name="bubble_sender_margin_top">2dp</dimen>
+    <!-- Image attachment max size to scale with bubble -->
+    <dimen name="attachment_image_width">160sp</dimen>
+    <dimen name="attachment_image_height">120sp</dimen>
 
     <!-- ─── Compose Bar ─── -->
     <dimen name="compose_bar_height">40dp</dimen>

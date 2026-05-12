@@ -38,8 +38,8 @@
 
         <ImageView
             android:id="@+id/iv_attachment"
-            android:layout_width="140dp"
-            android:layout_height="105dp"
+            android:layout_width="@dimen/attachment_image_width"
+            android:layout_height="@dimen/attachment_image_height"
             android:layout_marginTop="@dimen/padding_tiny"
             android:focusable="false"
             android:scaleType="centerCrop"

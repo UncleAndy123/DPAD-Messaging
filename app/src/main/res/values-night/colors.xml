@@ -20,9 +20,9 @@
     <color name="colorOnSurface">#FFFFFF</color>
 
     <!-- ─── D-Pad Focus ─── -->
-    <color name="focus_highlight">#4D03DAC5</color>
-    <color name="focus_border">#00FFFF</color>
-    <color name="focus_border_sent">#03DAC5</color>
+    <color name="focus_highlight">#7A03DAC5</color>   <!-- More opaque for consistency -->
+    <color name="focus_border">#00FFFF</color>          <!-- Bright cyan border -->
+    <color name="focus_border_sent">#00FFFF</color>     <!-- Bright cyan for sent bubbles -->
 
     <!-- ─── Message Bubbles ─── -->
     <color name="bubbleSentBg">#1A73E8</color>

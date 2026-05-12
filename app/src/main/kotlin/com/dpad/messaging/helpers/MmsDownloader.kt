@@ -145,13 +145,20 @@ object MmsDownloader {
             connection.connectTimeout = HTTP_CONNECT_TIMEOUT
             connection.readTimeout    = HTTP_READ_TIMEOUT
             connection.instanceFollowRedirects = true
-            // Standard MMS user-agent headers expected by carrier MMSCs
+            // Standard MMS user-agent headers — works across carriers (AT&T, Verizon, T-Mobile, etc.)
             connection.setRequestProperty("User-Agent",
                 "Android-Mms/2.0")
-            connection.setRequestProperty("Accept",
-                "*/*, application/vnd.wap.mms-message, application/vnd.wap.sic")
+            // WAP profile — required by most carriers for MMS content negotiation
             connection.setRequestProperty("x-wap-profile",
                 "http://www.google.com/oha/rdf/ua-profile-20080331.xml")
+            // Standard accept headers for MMS
+            connection.setRequestProperty("Accept",
+                "*/*, application/vnd.wap.mms-message, application/vnd.wap.sic")
+            // Some carriers (Verizon, etc.) require these headers
+            connection.setRequestProperty("Accept-Encoding", "gzip")
+            connection.setRequestProperty("Accept-Language", "en-US")
+            // Verizon and other carriers may set a proxy that requires specific headers
+            connection.setRequestProperty("Cache-Control", "no-cache")
             connection.connect()
 
             val code = connection.responseCode

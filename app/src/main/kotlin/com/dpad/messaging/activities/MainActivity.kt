@@ -224,6 +224,12 @@ class MainActivity : BaseActivity() {
         conversationsAdapter.submitList(conversations)
         binding.tvEmpty.visibility = if (conversations.isEmpty()) View.VISIBLE else View.GONE
 
+        if (isSearchVisible) {
+            // While searching, keep focus in the search box.
+            binding.etSearch.requestFocus()
+            return
+        }
+
         // Give focus to first item (or the new conversation button if list is empty)
         if (conversations.isEmpty()) {
             binding.btnNewConversation.requestFocus()

@@ -12,7 +12,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.ContactsContract
 import android.provider.Telephony
-import android.widget.PopupMenu
 import android.telephony.SubscriptionManager
 import android.text.Editable
 import android.text.TextWatcher
@@ -23,6 +22,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -333,7 +333,7 @@ class ThreadActivity : BaseActivity() {
 
         // Attach button — show menu to choose between media or contact.
         binding.btnAttach.setOnClickListener { anchor ->
-            val popup = PopupMenu(this, anchor)
+            val popup = PopupMenu(ThemeManager.popupMenuContext(this), anchor)
             popup.menu.add(0, 1, 0, getString(R.string.attach_image_audio))
             popup.menu.add(0, 2, 0, getString(R.string.attach_contact))
             popup.setOnMenuItemClickListener { item ->

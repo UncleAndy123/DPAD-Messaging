@@ -23,6 +23,14 @@
     </style>
 
     <!-- ─── Popup Menu (context menus, overflow) ─── -->
+    <style name="ThemeOverlay.DpadMessaging.PopupMenu" parent="ThemeOverlay.MaterialComponents">
+        <item name="colorSurface">@color/colorSurface</item>
+        <item name="colorOnSurface">@color/colorOnBackground</item>
+        <item name="android:popupBackground">@color/colorSurface</item>
+        <item name="android:textColorPrimary">@color/colorOnBackground</item>
+        <item name="android:textColorSecondary">@color/conversationDate</item>
+    </style>
+
     <style name="DpadPopupMenu" parent="Widget.MaterialComponents.PopupMenu">
         <item name="android:textColor">@color/colorOnBackground</item>
         <item name="android:background">@color/colorSurface</item>

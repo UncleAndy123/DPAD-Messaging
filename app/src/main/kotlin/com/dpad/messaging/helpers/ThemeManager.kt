@@ -3,6 +3,7 @@ package com.dpad.messaging.helpers
 import android.app.Activity
 import android.content.Context
 import android.os.Build
+import android.view.ContextThemeWrapper
 import android.view.View
 import android.widget.TextView
 import androidx.annotation.ColorInt
@@ -45,4 +46,7 @@ object ThemeManager {
         }
         return ContextCompat.getColor(context, colorRes)
     }
+
+    fun popupMenuContext(context: Context): Context =
+        ContextThemeWrapper(context, R.style.ThemeOverlay_DpadMessaging_PopupMenu)
 }

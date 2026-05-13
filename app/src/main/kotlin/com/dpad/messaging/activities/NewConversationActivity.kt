@@ -15,6 +15,7 @@ import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.TextView
 import android.widget.Toast
+import android.graphics.drawable.GradientDrawable
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -309,19 +310,26 @@ class NewConversationActivity : BaseActivity() {
         binding.recipientChipsContainer.removeAllViews()
         if (selectedRecipients.isEmpty()) {
             binding.recipientChipsScroll.visibility = View.GONE
+            binding.etRecipient.nextFocusDownId = R.id.btn_send
+            binding.btnAddRecipient.nextFocusDownId = R.id.btn_send
+            binding.btnSend.nextFocusUpId = R.id.et_recipient
             return
         }
 
         binding.recipientChipsScroll.visibility = View.VISIBLE
+        val chipViews = mutableListOf<TextView>()
         selectedRecipients.forEach { recipient ->
             val label = App.get().contactHelper.getDisplayName(recipient)
             val accent = ThemeManager.accentColor(this@NewConversationActivity)
             val chip = TextView(this).apply {
+                id = View.generateViewId()
                 text = "$label  ×"
                 contentDescription = getString(R.string.remove_recipient)
-                val tint = ColorStateList.valueOf(accent)
-                setBackgroundResource(R.drawable.button_focusable_bg)
-                backgroundTintList = tint
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = resources.getDimension(R.dimen.focus_corner_radius)
+                    setColor(accent)
+                }
                 setTextColor(ContextCompat.getColor(this@NewConversationActivity, R.color.colorOnPrimary))
                 textSize = 14f
                 isFocusable = true
@@ -340,6 +348,26 @@ class NewConversationActivity : BaseActivity() {
                 marginEnd = 12
             }
             binding.recipientChipsContainer.addView(chip, params)
+            chipViews.add(chip)
+        }
+
+        val firstChip = chipViews.firstOrNull()
+        val lastChip = chipViews.lastOrNull()
+        binding.etRecipient.nextFocusDownId = firstChip?.id ?: R.id.btn_send
+        binding.btnAddRecipient.nextFocusDownId = firstChip?.id ?: R.id.btn_send
+        binding.btnSend.nextFocusUpId = lastChip?.id ?: R.id.et_recipient
+        binding.recipientChipsScroll.nextFocusUpId = R.id.et_recipient
+        binding.recipientChipsScroll.nextFocusDownId = R.id.btn_send
+
+        chipViews.forEachIndexed { index, chip ->
+            chip.nextFocusUpId = R.id.et_recipient
+            chip.nextFocusDownId = R.id.btn_send
+            if (index > 0) {
+                chip.nextFocusLeftId = chipViews[index - 1].id
+            }
+            if (index < chipViews.lastIndex) {
+                chip.nextFocusRightId = chipViews[index + 1].id
+            }
         }
     }
 

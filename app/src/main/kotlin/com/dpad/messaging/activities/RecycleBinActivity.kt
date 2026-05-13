@@ -5,9 +5,9 @@ import android.os.Bundle
 import android.provider.Telephony
 import android.view.KeyEvent
 import android.view.View
-import android.widget.PopupMenu
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.appcompat.widget.PopupMenu
 import com.dpad.messaging.App
 import com.dpad.messaging.R
 import com.dpad.messaging.adapters.RecycleBinAdapter
@@ -81,7 +81,7 @@ class RecycleBinActivity : BaseActivity() {
     // ─── Context menu ─────────────────────────────────────────────────────────
 
     private fun showItemMenu(anchor: View, item: RecycledItem) {
-        val popup = PopupMenu(this, anchor)
+        val popup = PopupMenu(ThemeManager.popupMenuContext(this), anchor)
         popup.menu.add(0, 0, 0, getString(R.string.restore))
         popup.menu.add(0, 1, 1, getString(R.string.delete))
         popup.setOnMenuItemClickListener { menuItem ->

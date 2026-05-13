@@ -5,7 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
-import android.widget.PopupMenu
+import androidx.appcompat.widget.PopupMenu
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.dpad.messaging.App
@@ -92,7 +92,7 @@ class ArchivedConversationsActivity : BaseActivity() {
     }
 
     private fun showUnarchiveMenu(anchor: View, conversation: Conversation) {
-        val popup = PopupMenu(this, anchor)
+        val popup = PopupMenu(ThemeManager.popupMenuContext(this), anchor)
         popup.menu.add(0, 0, 0, getString(com.dpad.messaging.R.string.unarchive))
         popup.setOnMenuItemClickListener {
             Prefs.get().setThreadArchived(conversation.threadId, false)

@@ -385,7 +385,7 @@ class SettingsActivity : BaseActivity() {
     ) {
         val tvChevron = TextView(this).apply {
             text = "›"
-            setTextColor(getColor(R.color.colorOnBackground))
+            setTextColor(accentStateTextColors())
             setTextSize(
                 android.util.TypedValue.COMPLEX_UNIT_PX,
                 resources.getDimension(R.dimen.text_size_large)
@@ -413,7 +413,7 @@ class SettingsActivity : BaseActivity() {
     private fun buildTextColumn(label: String, summary: String): LinearLayout {
         val tvLabel = TextView(this).apply {
             text = label
-            setTextColor(getColor(R.color.colorOnBackground))
+            setTextColor(accentStateTextColors())
             setTextSize(
                 android.util.TypedValue.COMPLEX_UNIT_PX,
                 resources.getDimension(R.dimen.text_size_normal)
@@ -421,7 +421,7 @@ class SettingsActivity : BaseActivity() {
         }
         val tvSummary = TextView(this).apply {
             text = summary
-            setTextColor(getColor(R.color.conversationDate))
+            setTextColor(accentStateTextColors())
             setTextSize(
                 android.util.TypedValue.COMPLEX_UNIT_PX,
                 resources.getDimension(R.dimen.text_size_small)
@@ -454,6 +454,14 @@ class SettingsActivity : BaseActivity() {
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+    }
+
+    private fun accentStateTextColors(): ColorStateList {
+        val accent = ThemeManager.accentColor(this)
+        return ColorStateList(
+            arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
+            intArrayOf(accent, getColor(R.color.colorOnBackground))
         )
     }
 

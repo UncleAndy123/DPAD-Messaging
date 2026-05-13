@@ -2,6 +2,7 @@ package com.dpad.messaging.helpers
 
 import android.app.Dialog
 import android.content.Context
+import android.content.res.ColorStateList
 import android.os.Bundle
 import android.view.Gravity
 import android.view.KeyEvent
@@ -57,6 +58,14 @@ class BottomSheetMenu(context: Context) : Dialog(context) {
         val accentColor = ThemeManager.accentColor(context)
         val textColor = ContextCompat.getColor(context, R.color.colorOnBackground)
         val subColor = ContextCompat.getColor(context, R.color.conversationSnippet)
+        val focusedTextColors = ColorStateList(
+            arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
+            intArrayOf(
+                ContextCompat.getColor(context, R.color.colorOnPrimary),
+                textColor
+            )
+        )
+        val accentTint = ColorStateList.valueOf(accentColor)
 
         val rowHeight = context.resources.getDimensionPixelSize(R.dimen.conversation_item_height)
         val paddingH = context.resources.getDimensionPixelSize(R.dimen.padding_medium)
@@ -76,6 +85,7 @@ class BottomSheetMenu(context: Context) : Dialog(context) {
                 isFocusable = true
                 isFocusableInTouchMode = true
                 background = ContextCompat.getDrawable(context, R.drawable.item_focusable_bg)
+                backgroundTintList = accentTint
 
                 setOnClickListener {
                     item.action()
@@ -111,7 +121,7 @@ class BottomSheetMenu(context: Context) : Dialog(context) {
             // Label
             val label = TextView(context).apply {
                 text = item.label
-                setTextColor(textColor)
+                setTextColor(focusedTextColors)
                 textSize = context.resources.getDimension(R.dimen.text_size_medium) / context.resources.displayMetrics.scaledDensity
                 gravity = Gravity.CENTER_VERTICAL
                 layoutParams = LinearLayout.LayoutParams(
@@ -125,7 +135,7 @@ class BottomSheetMenu(context: Context) : Dialog(context) {
             // Chevron
             val chevron = TextView(context).apply {
                 text = "›"
-                setTextColor(subColor)
+                setTextColor(focusedTextColors)
                 textSize = context.resources.getDimension(R.dimen.text_size_large) / context.resources.displayMetrics.scaledDensity
             }
             row.addView(chevron)

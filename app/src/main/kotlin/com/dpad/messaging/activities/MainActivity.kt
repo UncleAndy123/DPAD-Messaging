@@ -10,12 +10,12 @@ import android.os.Bundle
 import android.provider.Telephony
 import android.view.KeyEvent
 import android.view.View
-import android.widget.PopupMenu
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import android.app.Activity
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -293,7 +293,7 @@ class MainActivity : BaseActivity() {
         // Find the anchor view - use the conversation menu button
         val anchor = binding.rvConversations.findViewWithTag<View>(conversation.threadId)
 
-        val popup = PopupMenu(this, anchor ?: binding.rvConversations)
+            val popup = PopupMenu(ThemeManager.popupMenuContext(this), anchor ?: binding.rvConversations)
         popup.menu.apply {
             add(0, 1, 0, if (conversation.read) getString(R.string.mark_as_unread) else getString(R.string.mark_as_read))
             add(0, 2, 1, if (conversation.pinned) getString(R.string.unpin) else getString(R.string.pin))
@@ -319,7 +319,7 @@ class MainActivity : BaseActivity() {
     }
 
     private fun showOverflowMenu() {
-        val popup = PopupMenu(this, binding.btnOverflow)
+        val popup = PopupMenu(ThemeManager.popupMenuContext(this), binding.btnOverflow)
         popup.menu.apply {
             add(0, 1, 0, getString(R.string.archived))
             add(0, 2, 1, getString(R.string.recycle_bin))

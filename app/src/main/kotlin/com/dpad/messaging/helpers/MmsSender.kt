@@ -5,6 +5,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.provider.Telephony
 import android.util.Log
 import com.klinker.android.send_message.Message as KlinkerMessage
@@ -64,6 +65,7 @@ object MmsSender {
         recipients: List<String>,
         body: String,
         attachmentUri: Uri?,
+        attachmentUris: List<Uri> = emptyList(),
         threadId: Long,
         subscriptionId: Int = -1
     ) {
@@ -75,12 +77,51 @@ object MmsSender {
             val digits = num.filter { it.isDigit() }
             digits !in ownNumbers && digits.takeLast(10) !in ownNumbers
         }.ifEmpty { recipients }
-        Log.d(TAG, "MmsSender.send() recipients=$recipients filtered=$filteredRecipients body='${body.take(20)}' attachment=${attachmentUri != null} threadId=$threadId")
+        val mergedAttachments = LinkedHashSet<Uri>().apply {
+            attachmentUris.forEach { add(it) }
+            if (attachmentUri != null) add(attachmentUri)
+        }.toList()
 
-        // Build mmslib Message
-        val message = KlinkerMessage(body, filteredRecipients.toTypedArray())
+        Log.d(
+            TAG,
+            "MmsSender.send() recipients=$recipients filtered=$filteredRecipients body='${body.take(20)}' attachments=${mergedAttachments.size} threadId=$threadId"
+        )
 
-        // Attach optional media/file (image, audio, vCard, etc.)
+        if (mergedAttachments.isEmpty()) {
+            sendSingleMms(
+                context = context,
+                recipients = filteredRecipients,
+                body = body,
+                attachmentUri = null,
+                subscriptionId = subscriptionId
+            )
+            return
+        }
+
+        mergedAttachments.forEachIndexed { index, uri ->
+            val isLast = index == mergedAttachments.lastIndex
+            sendSingleMms(
+                context = context,
+                recipients = filteredRecipients,
+                body = if (isLast) body else "",
+                attachmentUri = uri,
+                subscriptionId = subscriptionId
+            )
+        }
+    }
+
+    private fun sendSingleMms(
+        context: Context,
+        recipients: List<String>,
+        body: String,
+        attachmentUri: Uri?,
+        subscriptionId: Int
+    ) {
+        val message = KlinkerMessage(body, recipients.toTypedArray())
+        if (recipients.size > 1) {
+            message.setSubject("Group message")
+        }
+
         if (attachmentUri != null) {
             val mimeType = context.contentResolver.getType(attachmentUri)?.lowercase() ?: "application/octet-stream"
             val bytes = if (mimeType.startsWith("image/")) {
@@ -91,9 +132,14 @@ object MmsSender {
 
             if (bytes != null) {
                 try {
-                    val normalizedMime = if (mimeType.startsWith("image/")) "image/jpeg" else mimeType
-                    message.addMedia(bytes, normalizedMime)
-                    Log.d(TAG, "MmsSender: added attachment mime=$normalizedMime bytes=${bytes.size}")
+                    val normalizedMime = when {
+                        mimeType.startsWith("image/") -> "image/jpeg"
+                        mimeType == "text/plain" -> "application/txt"
+                        else -> mimeType
+                    }
+                    val attachmentName = resolveAttachmentName(context, attachmentUri, normalizedMime)
+                    message.addMedia(bytes, normalizedMime, attachmentName)
+                    Log.d(TAG, "MmsSender: added attachment mime=$normalizedMime name=$attachmentName bytes=${bytes.size}")
                 } catch (e: Exception) {
                     Log.e(TAG, "MmsSender: failed to add attachment", e)
                 }
@@ -105,7 +151,7 @@ object MmsSender {
         // Create Settings with desired behavior
         val settings = KlinkerSettings().apply {
             setUseSystemSending(true)  // Use system MMS APIs (Lollipop+)
-            setGroup(filteredRecipients.size > 1)  // Group mode if multiple recipients
+            setGroup(recipients.size > 1)  // Group mode if multiple recipients
             setDeliveryReports(Prefs.get().deliveryReports)
             if (subscriptionId >= 0) {
                 setSubscriptionId(subscriptionId)
@@ -114,7 +160,7 @@ object MmsSender {
 
         // Create Transaction and attach callback
         val transaction = KlinkerTransaction(context, settings)
-        val resolvedThreadId = resolveThreadId(context, filteredRecipients)
+        val resolvedThreadId = resolveThreadId(context, recipients)
         val hasImage = attachmentUri?.let {
             (context.contentResolver.getType(it) ?: "").startsWith("image/", ignoreCase = true)
         } == true
@@ -127,7 +173,7 @@ object MmsSender {
 
         // Send via mmslib
         try {
-            Log.d(TAG, "MmsSender: sending via mmslib recipients=$filteredRecipients group=${filteredRecipients.size > 1} subId=$subscriptionId")
+            Log.d(TAG, "MmsSender: sending via mmslib recipients=$recipients group=${recipients.size > 1} subId=$subscriptionId")
             transaction.sendNewMessage(message)
             Log.d(TAG, "MmsSender: sent successfully")
         } catch (e: Exception) {
@@ -156,6 +202,31 @@ object MmsSender {
         } catch (e: Exception) {
             Log.w(TAG, "MmsSender: readAttachment failed for $uri", e)
             null
+        }
+    }
+
+    private fun resolveAttachmentName(context: Context, uri: Uri, mimeType: String): String {
+        val displayName = runCatching {
+            context.contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+        }.getOrNull().orEmpty().trim()
+
+        if (displayName.isNotBlank()) return displayName
+
+        val lastSegment = uri.lastPathSegment.orEmpty().substringAfterLast('/').trim()
+        if (lastSegment.isNotBlank()) return lastSegment
+
+        return when (mimeType) {
+            "image/jpeg" -> "image.jpg"
+            "application/txt" -> "attachment.txt"
+            else -> "attachment.bin"
         }
     }
 

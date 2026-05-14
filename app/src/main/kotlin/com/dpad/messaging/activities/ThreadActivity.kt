@@ -74,6 +74,7 @@ class ThreadActivity : BaseActivity() {
 
     /** URI of the image the user has selected but not yet sent. Null when no pending attachment. */
     private var pendingAttachmentUri: Uri? = null
+    private val pendingAttachmentUris = mutableListOf<Uri>()
     private var pendingCameraUri: Uri? = null
 
     private lateinit var attachmentPickerLauncher: ActivityResultLauncher<Array<String>>
@@ -107,6 +108,8 @@ class ThreadActivity : BaseActivity() {
                     // Not all providers offer persistable permissions.
                 }
                 pendingAttachmentUri = uri
+                pendingAttachmentUris.clear()
+                pendingAttachmentUris.add(uri)
                 showAttachmentPreview(uri)
             }
         }
@@ -129,6 +132,8 @@ class ThreadActivity : BaseActivity() {
                             Uri.encode(lookupKey)
                         )
                         pendingAttachmentUri = vCardUri
+                        pendingAttachmentUris.clear()
+                        pendingAttachmentUris.add(vCardUri)
                         showAttachmentPreview(vCardUri)
                     }
                 }
@@ -141,6 +146,8 @@ class ThreadActivity : BaseActivity() {
             val uri = pendingCameraUri
             if (success && uri != null) {
                 pendingAttachmentUri = uri
+                pendingAttachmentUris.clear()
+                pendingAttachmentUris.add(uri)
                 showAttachmentPreview(uri)
             } else if (uri != null) {
                 runCatching { contentResolver.delete(uri, null, null) }
@@ -402,16 +409,31 @@ class ThreadActivity : BaseActivity() {
 
     private fun clearAttachment() {
         pendingAttachmentUri = null
+        pendingAttachmentUris.clear()
         binding.attachmentPreviewBar.visibility = View.GONE
         Glide.with(this).clear(binding.ivAttachmentPreview)
         updateSendButtonState()
     }
 
     private fun applyPrefillAttachmentFromIntent(intent: Intent?) {
+        val uriList = intent
+            ?.getStringArrayListExtra(EXTRA_PREFILL_ATTACHMENT_URIS)
+            ?.mapNotNull { runCatching { Uri.parse(it) }.getOrNull() }
+            .orEmpty()
+        if (uriList.isNotEmpty()) {
+            pendingAttachmentUris.clear()
+            pendingAttachmentUris.addAll(uriList)
+            pendingAttachmentUri = uriList.first()
+            showAttachmentPreview(uriList.first())
+            return
+        }
+
         val uriString = intent?.getStringExtra(EXTRA_PREFILL_ATTACHMENT_URI)
         if (uriString.isNullOrBlank()) return
         val uri = Uri.parse(uriString)
         pendingAttachmentUri = uri
+        pendingAttachmentUris.clear()
+        pendingAttachmentUris.add(uri)
         showAttachmentPreview(uri)
     }
 
@@ -648,6 +670,10 @@ class ThreadActivity : BaseActivity() {
     private fun sendMessage() {
         var body       = binding.etMessage.text?.toString()?.trim() ?: ""
         val attachment = pendingAttachmentUri
+        val attachments = LinkedHashSet<Uri>().apply {
+            addAll(pendingAttachmentUris)
+            if (attachment != null) add(attachment)
+        }.toList()
 
         // Collect numbers from chips and append to message
         val chipNumbers = mutableListOf<String>()
@@ -663,10 +689,10 @@ class ThreadActivity : BaseActivity() {
             }
         }
 
-        if (body.isBlank() && attachment == null) return
+        if (body.isBlank() && attachments.isEmpty()) return
         if (phoneNumber.isBlank() && participants.isEmpty()) return
 
-        Log.d("DPAD_MSG", "ThreadActivity.sendMessage() body='${body.take(20)}' attachment=${attachment != null} participants=$participants isGroup=${participants.size > 1}")
+        Log.d("DPAD_MSG", "ThreadActivity.sendMessage() body='${body.take(20)}' attachments=${attachments.size} participants=$participants isGroup=${participants.size > 1}")
 
         binding.etMessage.text?.clear()
         binding.chipsContainer.removeAllViews()
@@ -675,7 +701,7 @@ class ThreadActivity : BaseActivity() {
         binding.etMessage.requestFocus()
 
         lifecycleScope.launch(Dispatchers.IO) {
-            val hasAttachment = attachment != null
+            val hasAttachment = attachments.isNotEmpty()
             val mode = SendingRouter.decideSendingMode(
                 hasAttachment = hasAttachment,
                 recipientCount = participants.size,
@@ -690,6 +716,7 @@ class ThreadActivity : BaseActivity() {
                         recipients     = participants,
                         body           = body,
                         attachmentUri  = attachment,
+                        attachmentUris = attachments,
                         threadId       = threadId,
                         subscriptionId = selectedSubId
                     )
@@ -701,6 +728,7 @@ class ThreadActivity : BaseActivity() {
                         recipients     = listOf(phoneNumber),
                         body           = body,
                         attachmentUri  = attachment,
+                        attachmentUris = attachments,
                         threadId       = threadId,
                         subscriptionId = selectedSubId
                     )
@@ -909,6 +937,7 @@ class ThreadActivity : BaseActivity() {
         const val EXTRA_THREAD_TITLE = "extra_thread_title"
         const val EXTRA_PHONE_NUMBER = "extra_phone_number"
         const val EXTRA_PREFILL_ATTACHMENT_URI = "extra_prefill_attachment_uri"
+        const val EXTRA_PREFILL_ATTACHMENT_URIS = "extra_prefill_attachment_uris"
         /** Comma-separated participant numbers; present for group threads. */
         const val EXTRA_PARTICIPANTS = "extra_participants"
     }

@@ -32,6 +32,7 @@ interface UnifiedMessageSender {
         recipients: List<String>,
         body: String,
         attachmentUri: Uri?,
+        attachmentUris: List<Uri> = emptyList(),
         threadId: Long,
         subscriptionId: Int = -1
     )
@@ -70,6 +71,7 @@ object LegacyUnifiedMessageSender : UnifiedMessageSender {
         recipients: List<String>,
         body: String,
         attachmentUri: Uri?,
+        attachmentUris: List<Uri>,
         threadId: Long,
         subscriptionId: Int
     ) {
@@ -78,6 +80,7 @@ object LegacyUnifiedMessageSender : UnifiedMessageSender {
             recipients = recipients,
             body = body,
             attachmentUri = attachmentUri,
+            attachmentUris = attachmentUris,
             threadId = threadId,
             subscriptionId = subscriptionId
         )
@@ -184,6 +187,7 @@ object LibraryUnifiedMessageSender : UnifiedMessageSender {
         recipients: List<String>,
         body: String,
         attachmentUri: Uri?,
+        attachmentUris: List<Uri>,
         threadId: Long,
         subscriptionId: Int
     ) {
@@ -193,6 +197,7 @@ object LibraryUnifiedMessageSender : UnifiedMessageSender {
             recipients = recipients,
             body = body,
             attachmentUri = attachmentUri,
+            attachmentUris = attachmentUris,
             threadId = threadId,
             subscriptionId = subscriptionId
         )

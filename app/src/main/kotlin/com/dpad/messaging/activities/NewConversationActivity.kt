@@ -44,6 +44,7 @@ class NewConversationActivity : BaseActivity() {
 
     private lateinit var binding: ActivityNewConversationBinding
     private var pendingAttachmentUri: Uri? = null
+    private val pendingAttachmentUris = mutableListOf<Uri>()
     private var pendingPrefillBody: String = ""
     private val selectedRecipients = mutableListOf<String>()
     private val suggestions = mutableListOf<com.dpad.messaging.helpers.ContactHelper.ContactSuggestion>()
@@ -198,6 +199,10 @@ class NewConversationActivity : BaseActivity() {
         if (recipients.isEmpty()) return
 
         val attachment = pendingAttachmentUri
+        val attachments = LinkedHashSet<Uri>().apply {
+            addAll(pendingAttachmentUris)
+            if (attachment != null) add(attachment)
+        }.toList()
 
         // Contacts-first flow: resolve/create the thread and open it.
         lifecycleScope.launch {
@@ -224,6 +229,12 @@ class NewConversationActivity : BaseActivity() {
                     }
                     if (attachment != null) {
                         putExtra(ThreadActivity.EXTRA_PREFILL_ATTACHMENT_URI, attachment.toString())
+                    }
+                    if (attachments.isNotEmpty()) {
+                        putStringArrayListExtra(
+                            ThreadActivity.EXTRA_PREFILL_ATTACHMENT_URIS,
+                            ArrayList(attachments.map { it.toString() })
+                        )
                     }
                 }
                 startActivity(intent)
@@ -440,6 +451,10 @@ class NewConversationActivity : BaseActivity() {
                     intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
                 }
                 if (stream != null) pendingAttachmentUri = stream
+                if (stream != null) {
+                    pendingAttachmentUris.clear()
+                    pendingAttachmentUris.add(stream)
+                }
             }
             Intent.ACTION_SEND_MULTIPLE -> {
                 val text = intent.getStringExtra(Intent.EXTRA_TEXT)
@@ -454,8 +469,8 @@ class NewConversationActivity : BaseActivity() {
                     intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
                 }
 
-                // Current compose flow supports one pending attachment.
-                // If multiple are shared, keep the first to ensure we still appear in share targets.
+                pendingAttachmentUris.clear()
+                streams?.let { pendingAttachmentUris.addAll(it) }
                 streams?.firstOrNull()?.let { pendingAttachmentUri = it }
             }
             else -> {

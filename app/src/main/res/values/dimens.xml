@@ -64,4 +64,12 @@
 
     <!-- ─── Divider ─── -->
     <dimen name="divider_height">0.5dp</dimen>
+
+    <!-- ─── Recipient chips (New conversation) ─── -->
+    <dimen name="recipient_chip_min_height">24dp</dimen>
+    <dimen name="recipient_chip_padding_h">10dp</dimen>
+    <dimen name="recipient_chip_padding_v">3dp</dimen>
+    <dimen name="recipient_chip_margin_end">6dp</dimen>
+    <dimen name="recipient_chip_corner_radius">10dp</dimen>
+    <dimen name="recipient_chip_text_size">12sp</dimen>
 </resources>

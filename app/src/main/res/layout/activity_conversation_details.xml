@@ -64,6 +64,16 @@
                 android:textSize="@dimen/text_size_large"
                 android:textStyle="bold" />
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/padding_tiny"
+                android:layout_marginBottom="@dimen/padding_small"
+                android:text="@string/participants"
+                android:textColor="@color/conversationDate"
+                android:textSize="@dimen/text_size_small"
+                android:textStyle="bold" />
+
             <!-- Participants list (populated dynamically) -->
             <LinearLayout
                 android:id="@+id/participant_list"
@@ -77,10 +87,12 @@
                 android:id="@+id/btn_rename"
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/conversation_item_height"
-                android:background="@drawable/item_focusable_bg"
+                android:background="@drawable/details_row_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:gravity="center_vertical"
+                android:paddingStart="@dimen/padding_medium"
+                android:paddingEnd="@dimen/padding_medium"
                 android:text="@string/rename_conversation"
                 android:textColor="@color/colorOnBackground"
                 android:textSize="@dimen/text_size_normal" />
@@ -90,10 +102,13 @@
                 android:id="@+id/btn_block"
                 android:layout_width="match_parent"
                 android:layout_height="@dimen/conversation_item_height"
-                android:background="@drawable/item_focusable_bg"
+                android:layout_marginTop="@dimen/padding_tiny"
+                android:background="@drawable/details_row_bg"
                 android:focusable="true"
                 android:focusableInTouchMode="true"
                 android:gravity="center_vertical"
+                android:paddingStart="@dimen/padding_medium"
+                android:paddingEnd="@dimen/padding_medium"
                 android:text="@string/block"
                 android:textColor="@color/statusFailed"
                 android:textSize="@dimen/text_size_normal" />

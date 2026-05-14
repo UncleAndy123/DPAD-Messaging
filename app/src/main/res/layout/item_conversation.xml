@@ -65,7 +65,7 @@
             android:background="@drawable/avatar_bg"
             android:focusable="false"
             android:gravity="center"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/colorOnPrimary"
             android:textSize="@dimen/avatar_text_size"
             android:textStyle="bold" />
 

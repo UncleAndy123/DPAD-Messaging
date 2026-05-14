@@ -7,6 +7,8 @@
         <item name="colorOnPrimary">@color/colorOnPrimary</item>
         <item name="colorSecondary">@color/colorSecondary</item>
         <item name="colorOnSecondary">@color/colorOnSecondary</item>
+        <item name="colorControlActivated">@color/colorSecondary</item>
+        <item name="colorControlHighlight">@color/focus_highlight</item>
         <item name="android:colorBackground">@color/colorBackground</item>
         <item name="android:windowBackground">@color/colorBackground</item>
         <item name="android:statusBarColor">@color/toolbarBg</item>
@@ -15,6 +17,38 @@
         <item name="android:textColorPrimary">@color/colorOnBackground</item>
         <!-- Disable activity transition animations for snappy dumbphone feel -->
         <item name="android:windowAnimationStyle">@null</item>
+    </style>
+
+    <style name="Theme.DpadMessaging.Blue" parent="Theme.DpadMessaging">
+        <item name="colorPrimary">@color/accent_blue</item>
+        <item name="colorPrimaryVariant">@color/accent_blue_dark</item>
+        <item name="colorSecondary">@color/accent_blue</item>
+        <item name="colorControlActivated">@color/accent_blue</item>
+        <item name="colorControlHighlight">@color/accent_blue_highlight</item>
+    </style>
+
+    <style name="Theme.DpadMessaging.Green" parent="Theme.DpadMessaging">
+        <item name="colorPrimary">@color/accent_green</item>
+        <item name="colorPrimaryVariant">@color/accent_green_dark</item>
+        <item name="colorSecondary">@color/accent_green</item>
+        <item name="colorControlActivated">@color/accent_green</item>
+        <item name="colorControlHighlight">@color/accent_green_highlight</item>
+    </style>
+
+    <style name="Theme.DpadMessaging.Orange" parent="Theme.DpadMessaging">
+        <item name="colorPrimary">@color/accent_orange</item>
+        <item name="colorPrimaryVariant">@color/accent_orange_dark</item>
+        <item name="colorSecondary">@color/accent_orange</item>
+        <item name="colorControlActivated">@color/accent_orange</item>
+        <item name="colorControlHighlight">@color/accent_orange_highlight</item>
+    </style>
+
+    <style name="Theme.DpadMessaging.Rose" parent="Theme.DpadMessaging">
+        <item name="colorPrimary">@color/accent_rose</item>
+        <item name="colorPrimaryVariant">@color/accent_rose_dark</item>
+        <item name="colorSecondary">@color/accent_rose</item>
+        <item name="colorControlActivated">@color/accent_rose</item>
+        <item name="colorControlHighlight">@color/accent_rose_highlight</item>
     </style>
 
     <!-- Splash screen: identical background so there's no flash -->

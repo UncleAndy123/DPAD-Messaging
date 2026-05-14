@@ -10,6 +10,7 @@ import android.provider.ContactsContract.CommonDataKinds.Phone
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
+import android.util.TypedValue
 import android.view.KeyEvent
 import android.view.View
 import android.widget.ArrayAdapter
@@ -19,6 +20,7 @@ import android.graphics.drawable.GradientDrawable
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.ColorUtils
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.dpad.messaging.App
@@ -311,6 +313,7 @@ class NewConversationActivity : BaseActivity() {
         if (selectedRecipients.isEmpty()) {
             binding.recipientChipsScroll.visibility = View.GONE
             binding.etRecipient.nextFocusDownId = R.id.btn_send
+            binding.btnAddRecipient.nextFocusLeftId = R.id.et_recipient
             binding.btnAddRecipient.nextFocusDownId = R.id.btn_send
             binding.btnSend.nextFocusUpId = R.id.et_recipient
             return
@@ -320,32 +323,37 @@ class NewConversationActivity : BaseActivity() {
         val chipViews = mutableListOf<TextView>()
         selectedRecipients.forEach { recipient ->
             val label = App.get().contactHelper.getDisplayName(recipient)
-            val accent = ThemeManager.accentColor(this@NewConversationActivity)
             val chip = TextView(this).apply {
                 id = View.generateViewId()
                 text = "$label  ×"
                 contentDescription = getString(R.string.remove_recipient)
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.RECTANGLE
-                    cornerRadius = resources.getDimension(R.dimen.focus_corner_radius)
-                    setColor(accent)
-                }
-                setTextColor(ContextCompat.getColor(this@NewConversationActivity, R.color.colorOnPrimary))
-                textSize = 14f
+                applyRecipientChipStyle(this)
+                setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.recipient_chip_text_size))
                 isFocusable = true
                 isFocusableInTouchMode = true
-                setPadding(24, 12, 24, 12)
+                val padH = resources.getDimensionPixelSize(R.dimen.recipient_chip_padding_h)
+                val padV = resources.getDimensionPixelSize(R.dimen.recipient_chip_padding_v)
+                minHeight = resources.getDimensionPixelSize(R.dimen.recipient_chip_min_height)
+                setPadding(padH, padV, padH, padV)
                 setOnClickListener {
                     selectedRecipients.remove(recipient)
                     renderRecipientChips()
                     updateSendButton()
+                }
+                onFocusChangeListener = View.OnFocusChangeListener { view, hasFocus ->
+                    applyRecipientChipStyle(view as TextView, hasFocus)
+                    if (hasFocus) {
+                        binding.recipientChipsScroll.post {
+                            binding.recipientChipsScroll.smoothScrollTo(view.left, 0)
+                        }
+                    }
                 }
             }
             val params = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                marginEnd = 12
+                marginEnd = resources.getDimensionPixelSize(R.dimen.recipient_chip_margin_end)
             }
             binding.recipientChipsContainer.addView(chip, params)
             chipViews.add(chip)
@@ -355,6 +363,7 @@ class NewConversationActivity : BaseActivity() {
         val lastChip = chipViews.lastOrNull()
         binding.etRecipient.nextFocusDownId = firstChip?.id ?: R.id.btn_send
         binding.btnAddRecipient.nextFocusDownId = firstChip?.id ?: R.id.btn_send
+        binding.btnAddRecipient.nextFocusLeftId = lastChip?.id ?: R.id.et_recipient
         binding.btnSend.nextFocusUpId = lastChip?.id ?: R.id.et_recipient
         binding.recipientChipsScroll.nextFocusUpId = R.id.et_recipient
         binding.recipientChipsScroll.nextFocusDownId = R.id.btn_send
@@ -362,13 +371,37 @@ class NewConversationActivity : BaseActivity() {
         chipViews.forEachIndexed { index, chip ->
             chip.nextFocusUpId = R.id.et_recipient
             chip.nextFocusDownId = R.id.btn_send
-            if (index > 0) {
-                chip.nextFocusLeftId = chipViews[index - 1].id
-            }
-            if (index < chipViews.lastIndex) {
-                chip.nextFocusRightId = chipViews[index + 1].id
-            }
+            chip.nextFocusLeftId = if (index > 0) chipViews[index - 1].id else R.id.btn_add_recipient
+            chip.nextFocusRightId = if (index < chipViews.lastIndex) chipViews[index + 1].id else R.id.btn_add_recipient
         }
+    }
+
+    private fun applyRecipientChipStyle(chip: TextView, focused: Boolean = chip.isFocused) {
+        val accent = ThemeManager.accentColor(this)
+        val surface = ContextCompat.getColor(this, R.color.colorSurface)
+        val onSurface = ContextCompat.getColor(this, R.color.colorOnSurface)
+        val onPrimary = ContextCompat.getColor(this, R.color.colorOnPrimary)
+        val radius = resources.getDimension(R.dimen.recipient_chip_corner_radius)
+        val strokeWidth = resources.getDimensionPixelSize(R.dimen.focus_border_width)
+
+        val backgroundColor = if (focused) {
+            accent
+        } else {
+            ColorUtils.blendARGB(surface, accent, 0.18f)
+        }
+        val strokeColor = if (focused) {
+            ContextCompat.getColor(this, R.color.focus_border)
+        } else {
+            ColorUtils.blendARGB(accent, onSurface, 0.2f)
+        }
+
+        chip.background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = radius
+            setColor(backgroundColor)
+            setStroke(strokeWidth, strokeColor)
+        }
+        chip.setTextColor(if (focused) onPrimary else onSurface)
     }
 
     private fun addPickedContact(contactUri: Uri) {
@@ -407,6 +440,23 @@ class NewConversationActivity : BaseActivity() {
                     intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
                 }
                 if (stream != null) pendingAttachmentUri = stream
+            }
+            Intent.ACTION_SEND_MULTIPLE -> {
+                val text = intent.getStringExtra(Intent.EXTRA_TEXT)
+                if (!text.isNullOrBlank()) {
+                    pendingPrefillBody = text
+                }
+
+                val streams = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
+                }
+
+                // Current compose flow supports one pending attachment.
+                // If multiple are shared, keep the first to ensure we still appear in share targets.
+                streams?.firstOrNull()?.let { pendingAttachmentUri = it }
             }
             else -> {
                 val prefill = intent.getStringExtra(EXTRA_PREFILL_BODY)

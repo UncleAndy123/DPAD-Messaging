@@ -38,6 +38,7 @@ class ConversationDetailsActivity : BaseActivity() {
     private lateinit var binding: ActivityConversationDetailsBinding
     private val participantNameViews = mutableListOf<TextView>()
     private val participantAddViews = mutableListOf<TextView>()
+    private val participantCallViews = mutableListOf<ImageButton>()
 
     private var threadId: Long = -1L
     private var currentTitle: String = ""
@@ -75,8 +76,8 @@ class ConversationDetailsActivity : BaseActivity() {
         container.removeAllViews()
         participantNameViews.clear()
         participantAddViews.clear()
+        participantCallViews.clear()
         val accent = ThemeManager.accentColor(this)
-        val accentTint = ColorStateList.valueOf(accent)
         val focusedTextColors = ColorStateList(
             arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
             intArrayOf(
@@ -108,9 +109,10 @@ class ConversationDetailsActivity : BaseActivity() {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     resources.getDimensionPixelSize(R.dimen.conversation_item_height)
-                )
-                setBackgroundResource(R.drawable.item_focusable_bg)
-                backgroundTintList = accentTint
+                ).apply {
+                    bottomMargin = resources.getDimensionPixelSize(R.dimen.padding_tiny)
+                }
+                setBackgroundResource(R.drawable.details_row_bg)
                 // Let children receive focus first (so the name and + button are individually reachable)
                 descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
                 isFocusable = false
@@ -121,12 +123,16 @@ class ConversationDetailsActivity : BaseActivity() {
             val tv = TextView(this).apply {
                 id = tvId
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
-                setBackgroundResource(R.drawable.item_focusable_bg)
-                backgroundTintList = accentTint
+                setBackgroundResource(R.drawable.details_row_bg)
                 setTextColor(focusedTextColors)
                 setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.text_size_normal))
                 text = display
-                setPadding(12, 0, 12, 0)
+                setPadding(
+                    resources.getDimensionPixelSize(R.dimen.padding_medium),
+                    0,
+                    resources.getDimensionPixelSize(R.dimen.padding_medium),
+                    0
+                )
                 isFocusable = true
                 isFocusableInTouchMode = true
                 setOnClickListener {
@@ -146,10 +152,15 @@ class ConversationDetailsActivity : BaseActivity() {
                         resources.getDimensionPixelSize(R.dimen.compose_button_size),
                         LinearLayout.LayoutParams.MATCH_PARENT
                     )
-                    setBackgroundResource(R.drawable.button_focusable_bg)
-                    backgroundTintList = accentTint
+                    setBackgroundResource(R.drawable.details_row_bg)
                     setImageResource(R.drawable.ic_call)
-                    imageTintList = ColorStateList.valueOf(ContextCompat.getColor(this@ConversationDetailsActivity, R.color.colorOnPrimary))
+                    imageTintList = ColorStateList(
+                        arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
+                        intArrayOf(
+                            ContextCompat.getColor(this@ConversationDetailsActivity, R.color.colorOnPrimary),
+                            accent
+                        )
+                    )
                     contentDescription = getString(R.string.call)
                     scaleType = ImageView.ScaleType.CENTER
                     isFocusable = true
@@ -159,6 +170,7 @@ class ConversationDetailsActivity : BaseActivity() {
                     }
                 }
                 row.addView(callButton)
+                participantCallViews.add(callButton)
                 tv.nextFocusRightId = callId
                 callButton.nextFocusLeftId = tvId
             }
@@ -173,11 +185,10 @@ class ConversationDetailsActivity : BaseActivity() {
                         resources.getDimensionPixelSize(R.dimen.compose_button_size),
                         LinearLayout.LayoutParams.MATCH_PARENT
                     )
-                    setBackgroundResource(R.drawable.button_focusable_bg)
-                    backgroundTintList = accentTint
+                    setBackgroundResource(R.drawable.details_row_bg)
                     setTextColor(focusedTextColors)
                     text = "+"
-                    textSize = 18f
+                    setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.text_size_title))
                     gravity = Gravity.CENTER
                     isFocusable = true
                     isFocusableInTouchMode = true
@@ -248,8 +259,24 @@ class ConversationDetailsActivity : BaseActivity() {
         val tint = ColorStateList.valueOf(accent)
         binding.btnBack.imageTintList = tint
         binding.btnBack.backgroundTintList = tint
-        binding.btnRename.backgroundTintList = tint
-        binding.btnBlock.backgroundTintList = tint
+        binding.btnRename.setTextColor(
+            ColorStateList(
+                arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
+                intArrayOf(
+                    ContextCompat.getColor(this, R.color.colorOnPrimary),
+                    ContextCompat.getColor(this, R.color.colorOnBackground)
+                )
+            )
+        )
+        binding.btnBlock.setTextColor(
+            ColorStateList(
+                arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
+                intArrayOf(
+                    ContextCompat.getColor(this, R.color.colorOnPrimary),
+                    ContextCompat.getColor(this, R.color.statusFailed)
+                )
+            )
+        )
 
         val onPrimary = ContextCompat.getColor(this, R.color.colorOnPrimary)
         participantNameViews.forEach { nameView ->
@@ -259,15 +286,19 @@ class ConversationDetailsActivity : BaseActivity() {
                     intArrayOf(onPrimary, ContextCompat.getColor(this, R.color.colorOnBackground))
                 )
             )
-            nameView.backgroundTintList = tint
         }
         participantAddViews.forEach { addView ->
-            addView.backgroundTintList = tint
             addView.setTextColor(
                 ColorStateList(
                     arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
-                    intArrayOf(onPrimary, ContextCompat.getColor(this, R.color.colorOnBackground))
+                    intArrayOf(onPrimary, accent)
                 )
+            )
+        }
+        participantCallViews.forEach { callView ->
+            callView.imageTintList = ColorStateList(
+                arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
+                intArrayOf(onPrimary, accent)
             )
         }
     }

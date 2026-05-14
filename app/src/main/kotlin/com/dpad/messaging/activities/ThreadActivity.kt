@@ -24,6 +24,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.Glide
@@ -49,6 +50,7 @@ import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import java.io.File
 
 class ThreadActivity : BaseActivity() {
 
@@ -72,9 +74,11 @@ class ThreadActivity : BaseActivity() {
 
     /** URI of the image the user has selected but not yet sent. Null when no pending attachment. */
     private var pendingAttachmentUri: Uri? = null
+    private var pendingCameraUri: Uri? = null
 
     private lateinit var attachmentPickerLauncher: ActivityResultLauncher<Array<String>>
     private lateinit var contactPickerLauncher: ActivityResultLauncher<Void?>
+    private lateinit var cameraCaptureLauncher: ActivityResultLauncher<Uri>
     private var hasInitializedList = false
 
     // ─── Lifecycle ─────────────────────────────────────────────────────────
@@ -131,6 +135,19 @@ class ThreadActivity : BaseActivity() {
             }
         }
 
+        cameraCaptureLauncher = registerForActivityResult(
+            ActivityResultContracts.TakePicture()
+        ) { success ->
+            val uri = pendingCameraUri
+            if (success && uri != null) {
+                pendingAttachmentUri = uri
+                showAttachmentPreview(uri)
+            } else if (uri != null) {
+                runCatching { contentResolver.delete(uri, null, null) }
+            }
+            pendingCameraUri = null
+        }
+
         setupToolbar()
         setupMessageList()
         setupComposeBar()
@@ -176,10 +193,7 @@ class ThreadActivity : BaseActivity() {
         binding.btnBack.setOnClickListener { finish() }
 
         binding.btnCall.setOnClickListener {
-            if (phoneNumber.isNotBlank()) {
-                val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phoneNumber"))
-                startActivity(intent)
-            }
+            handleCallAction()
         }
 
         binding.btnDetails.setOnClickListener {
@@ -342,10 +356,12 @@ class ThreadActivity : BaseActivity() {
             val popup = PopupMenu(ThemeManager.popupMenuContext(this), anchor)
             popup.menu.add(0, 1, 0, getString(R.string.attach_image_audio))
             popup.menu.add(0, 2, 0, getString(R.string.attach_contact))
+            popup.menu.add(0, 3, 0, getString(R.string.attach_camera))
             popup.setOnMenuItemClickListener { item ->
                 when (item.itemId) {
                     1 -> attachmentPickerLauncher.launch(arrayOf("image/*", "audio/*"))
                     2 -> contactPickerLauncher.launch(null)
+                    3 -> launchCameraAttachment()
                 }
                 true
             }
@@ -397,6 +413,14 @@ class ThreadActivity : BaseActivity() {
         val uri = Uri.parse(uriString)
         pendingAttachmentUri = uri
         showAttachmentPreview(uri)
+    }
+
+    private fun launchCameraAttachment() {
+        val imageFile = File(cacheDir, "camera_capture/thread_${threadId}_${System.currentTimeMillis()}.jpg")
+        imageFile.parentFile?.mkdirs()
+        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", imageFile)
+        pendingCameraUri = uri
+        cameraCaptureLauncher.launch(uri)
     }
 
     // ─── Number chips ──────────────────────────────────────────────────────
@@ -548,6 +572,38 @@ class ThreadActivity : BaseActivity() {
         participants = intent?.getStringExtra(EXTRA_PARTICIPANTS)
             ?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() }
             ?: listOf(phoneNumber).filter { it.isNotBlank() }
+    }
+
+    private fun handleCallAction() {
+        val candidates = (participants + phoneNumber)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+
+        when {
+            candidates.isEmpty() -> return
+            candidates.size == 1 -> startDialIntent(candidates.first())
+            else -> showCallContactChooser(candidates)
+        }
+    }
+
+    private fun showCallContactChooser(numbers: List<String>) {
+        val labels = numbers.map { number ->
+            val display = App.get().contactHelper.getDisplayName(number)
+            if (display.equals(number, ignoreCase = true)) number else "$display ($number)"
+        }.toTypedArray()
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.call)
+            .setItems(labels) { _, which ->
+                numbers.getOrNull(which)?.let { startDialIntent(it) }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    private fun startDialIntent(number: String) {
+        startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number")))
     }
 
     private fun markThreadRead() {

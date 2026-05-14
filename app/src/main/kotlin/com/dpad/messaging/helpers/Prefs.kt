@@ -83,7 +83,7 @@ class Prefs private constructor(context: Context) {
      * Default: false.
      */
     var sendGroupMessageMms: Boolean
-        get() = prefs.getBoolean(KEY_SEND_GROUP_MESSAGE_MMS, false)
+        get() = prefs.getBoolean(KEY_SEND_GROUP_MESSAGE_MMS, true)
         set(v) = prefs.edit().putBoolean(KEY_SEND_GROUP_MESSAGE_MMS, v).apply()
 
     /**

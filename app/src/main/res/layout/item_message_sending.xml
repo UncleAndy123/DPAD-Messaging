@@ -51,7 +51,7 @@
             android:layout_marginTop="@dimen/padding_tiny"
             android:focusable="false"
             android:text="@string/sending"
-            android:textColor="#AAFFFFFF"
+            android:textColor="@color/messageMetaOnSent"
             android:textSize="@dimen/text_size_small"
             android:textStyle="italic" />
 

@@ -12,6 +12,8 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
+import androidx.core.content.ContextCompat
+import com.dpad.messaging.App
 import com.dpad.messaging.BuildConfig
 import com.dpad.messaging.R
 import com.dpad.messaging.databinding.ActivitySettingsBinding
@@ -121,6 +123,7 @@ class SettingsActivity : BaseActivity() {
             ),
             setValue     = {
                 prefs.appAccent = it
+                App.get().refreshNotificationChannels()
                 recreate()
             }
         )
@@ -294,8 +297,8 @@ class SettingsActivity : BaseActivity() {
         setValue: (Boolean) -> Unit
     ) {
         val accent = ThemeManager.accentColor(this)
-        val gray = 0xFFAAAAAA.toInt()
-        val grayTrack = 0xFF666666.toInt()
+        val gray = ContextCompat.getColor(this, R.color.switchThumbOff)
+        val grayTrack = ContextCompat.getColor(this, R.color.switchTrackOff)
         val sw = SwitchCompat(this).apply {
             isChecked = getValue()
             isFocusable = false

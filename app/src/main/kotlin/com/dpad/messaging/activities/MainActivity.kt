@@ -48,6 +48,9 @@ class MainActivity : BaseActivity() {
     /** Debounce job for search filtering — cancels and reschedules on each keystroke */
     private var searchDebounceJob: Job? = null
 
+    /** Thread to focus after list refresh (used when returning from a conversation). */
+    private var pendingFocusThreadId: Long? = null
+
     private val requiredPermissions = buildList {
         add(Manifest.permission.READ_SMS)
         add(Manifest.permission.SEND_SMS)
@@ -103,6 +106,7 @@ class MainActivity : BaseActivity() {
     }
 
     override fun onPause() {
+        pendingFocusThreadId = currentFocusedThreadId() ?: pendingFocusThreadId
         EventBus.getDefault().unregister(this)
         super.onPause()
     }
@@ -221,21 +225,36 @@ class MainActivity : BaseActivity() {
     }
 
     private fun displayConversations(conversations: List<Conversation>) {
-        conversationsAdapter.submitList(conversations)
-        binding.tvEmpty.visibility = if (conversations.isEmpty()) View.VISIBLE else View.GONE
+        conversationsAdapter.submitList(conversations) {
+            binding.tvEmpty.visibility = if (conversations.isEmpty()) View.VISIBLE else View.GONE
 
-        if (isSearchVisible) {
-            // While searching, keep focus in the search box.
-            binding.etSearch.requestFocus()
-            return
-        }
+            if (isSearchVisible) {
+                // While searching, keep focus in the search box.
+                binding.etSearch.requestFocus()
+                return@submitList
+            }
 
-        // Give focus to first item (or the new conversation button if list is empty)
-        if (conversations.isEmpty()) {
-            binding.btnNewConversation.requestFocus()
-        } else {
+            if (conversations.isEmpty()) {
+                binding.btnNewConversation.requestFocus()
+                pendingFocusThreadId = null
+                return@submitList
+            }
+
+            val targetPosition = pendingFocusThreadId
+                ?.let { threadId -> conversations.indexOfFirst { it.threadId == threadId } }
+                ?.takeIf { it >= 0 }
+
             binding.rvConversations.post {
-                binding.rvConversations.focusFirstItem()
+                when {
+                    targetPosition != null -> binding.rvConversations.focusItem(targetPosition)
+                    binding.rvConversations.focusedChild == null &&
+                        !binding.btnNewConversation.isFocused &&
+                        !binding.btnSearch.isFocused &&
+                        !binding.btnOverflow.isFocused -> {
+                        binding.rvConversations.focusFirstItem()
+                    }
+                }
+                pendingFocusThreadId = null
             }
         }
     }
@@ -265,6 +284,7 @@ class MainActivity : BaseActivity() {
     // ─── Navigation ─────────────────────────────────────────────────────────
 
     private fun openThread(conversation: Conversation) {
+        pendingFocusThreadId = conversation.threadId
         val intent = Intent(this, ThreadActivity::class.java).apply {
             putExtra(ThreadActivity.EXTRA_THREAD_ID, conversation.threadId)
             putExtra(ThreadActivity.EXTRA_THREAD_TITLE, conversation.title)
@@ -274,6 +294,14 @@ class MainActivity : BaseActivity() {
             }
         }
         startActivity(intent)
+    }
+
+    private fun currentFocusedThreadId(): Long? {
+        val focusedChild = binding.rvConversations.focusedChild ?: return null
+        val holder = binding.rvConversations.findContainingViewHolder(focusedChild) ?: return null
+        val pos = holder.bindingAdapterPosition
+        if (pos == androidx.recyclerview.widget.RecyclerView.NO_POSITION) return null
+        return conversationsAdapter.currentList.getOrNull(pos)?.threadId
     }
 
     // ─── Search overlay ─────────────────────────────────────────────────────

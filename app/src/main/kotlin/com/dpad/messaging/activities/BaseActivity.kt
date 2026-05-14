@@ -3,8 +3,10 @@ package com.dpad.messaging.activities
 import android.content.Context
 import android.content.res.Configuration
 import android.content.res.Resources
+import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.dpad.messaging.helpers.Prefs
+import com.dpad.messaging.helpers.ThemeManager
 
 /**
  * Base activity that applies the user's chosen UI scale by overriding the
@@ -12,6 +14,15 @@ import com.dpad.messaging.helpers.Prefs
  * of [AppCompatActivity] directly.
  */
 abstract class BaseActivity : AppCompatActivity() {
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        try {
+            setTheme(ThemeManager.activityThemeRes())
+        } catch (_: Exception) {
+            // Fallback to manifest theme during very early startup.
+        }
+        super.onCreate(savedInstanceState)
+    }
 
     override fun attachBaseContext(newBase: Context) {
         // Guard: Prefs may not yet be initialised during very early startup (SplashActivity).

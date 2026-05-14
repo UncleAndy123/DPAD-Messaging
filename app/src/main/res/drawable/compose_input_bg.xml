@@ -4,7 +4,7 @@
     <item android:state_focused="true">
         <shape android:shape="rectangle">
             <solid android:color="@color/composeInputBg"/>
-            <stroke android:width="@dimen/focus_border_width" android:color="@color/focus_border"/>
+            <stroke android:width="@dimen/focus_border_width" android:color="?attr/colorControlActivated"/>
             <corners android:radius="16dp"/>
         </shape>
     </item>

@@ -5,7 +5,7 @@
         <shape android:shape="rectangle">
             <solid android:color="@color/bubbleReceivedBg"/>
             <!-- Thicker border for better visibility on light backgrounds -->
-            <stroke android:width="3dp" android:color="@color/focus_border"/>
+            <stroke android:width="3dp" android:color="?attr/colorControlActivated"/>
             <corners
                 android:topLeftRadius="@dimen/bubble_corner_radius"
                 android:topRightRadius="@dimen/bubble_corner_radius"

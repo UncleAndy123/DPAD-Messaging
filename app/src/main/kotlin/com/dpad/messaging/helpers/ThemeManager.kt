@@ -13,6 +13,15 @@ import com.dpad.messaging.R
 
 object ThemeManager {
 
+    fun activityThemeRes(): Int {
+        return when (Prefs.get().appAccent) {
+            Prefs.ACCENT_GREEN -> R.style.Theme_DpadMessaging_Green
+            Prefs.ACCENT_ORANGE -> R.style.Theme_DpadMessaging_Orange
+            Prefs.ACCENT_ROSE -> R.style.Theme_DpadMessaging_Rose
+            else -> R.style.Theme_DpadMessaging_Blue
+        }
+    }
+
     fun applyThemeMode(mode: String) {
         val nightMode = when (mode) {
             Prefs.THEME_LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
@@ -24,7 +33,6 @@ object ThemeManager {
 
     fun applyAccentColor(activity: Activity) {
         val accentColor = accentColor(activity)
-        val colorOnPrimary = ContextCompat.getColor(activity, R.color.colorOnPrimary)
 
         activity.window.apply {
             statusBarColor = accentColor

@@ -128,14 +128,18 @@ class ThreadAdapter(
                 Glide.with(binding.root.context)
                     .load(Uri.parse(attachmentUri))
                     .into(binding.ivAttachment)
-                binding.ivAttachment.setOnClickListener {
-                    val intent = Intent(binding.root.context, ImageViewerActivity::class.java)
-                        .putExtra(ImageViewerActivity.EXTRA_IMAGE_URI, attachmentUri)
-                    binding.root.context.startActivity(intent)
-                }
+                binding.ivAttachment.isFocusable = true
+                binding.ivAttachment.isFocusableInTouchMode = true
+                binding.ivAttachment.isClickable = true
+                binding.ivAttachment.setOnClickListener { openImageViewer(binding.root.context, attachmentUri) }
+                binding.bubbleContainer.setOnClickListener { openImageViewer(binding.root.context, attachmentUri) }
             } else {
                 binding.ivAttachment.visibility = View.GONE
+                binding.ivAttachment.isFocusable = false
+                binding.ivAttachment.isFocusableInTouchMode = false
+                binding.ivAttachment.isClickable = false
                 binding.ivAttachment.setOnClickListener(null)
+                binding.bubbleContainer.setOnClickListener(null)
             }
             binding.bubbleContainer.setOnLongClickListener {
                 onMessageLongClick(message)
@@ -164,14 +168,18 @@ class ThreadAdapter(
                 Glide.with(binding.root.context)
                     .load(Uri.parse(attachmentUri))
                     .into(binding.ivAttachment)
-                binding.ivAttachment.setOnClickListener {
-                    val intent = Intent(binding.root.context, ImageViewerActivity::class.java)
-                        .putExtra(ImageViewerActivity.EXTRA_IMAGE_URI, attachmentUri)
-                    binding.root.context.startActivity(intent)
-                }
+                binding.ivAttachment.isFocusable = true
+                binding.ivAttachment.isFocusableInTouchMode = true
+                binding.ivAttachment.isClickable = true
+                binding.ivAttachment.setOnClickListener { openImageViewer(binding.root.context, attachmentUri) }
+                binding.bubbleContainer.setOnClickListener { openImageViewer(binding.root.context, attachmentUri) }
             } else {
                 binding.ivAttachment.visibility = View.GONE
+                binding.ivAttachment.isFocusable = false
+                binding.ivAttachment.isFocusableInTouchMode = false
+                binding.ivAttachment.isClickable = false
                 binding.ivAttachment.setOnClickListener(null)
+                binding.bubbleContainer.setOnClickListener(null)
             }
             binding.bubbleContainer.setOnLongClickListener {
                 onMessageLongClick(message)
@@ -200,16 +208,26 @@ class ThreadAdapter(
                 Glide.with(binding.root.context)
                     .load(Uri.parse(attachmentUri))
                     .into(binding.ivAttachment)
-                binding.ivAttachment.setOnClickListener {
-                    val intent = Intent(binding.root.context, ImageViewerActivity::class.java)
-                        .putExtra(ImageViewerActivity.EXTRA_IMAGE_URI, attachmentUri)
-                    binding.root.context.startActivity(intent)
-                }
+                binding.ivAttachment.isFocusable = true
+                binding.ivAttachment.isFocusableInTouchMode = true
+                binding.ivAttachment.isClickable = true
+                binding.ivAttachment.setOnClickListener { openImageViewer(binding.root.context, attachmentUri) }
+                binding.bubbleContainer.setOnClickListener { openImageViewer(binding.root.context, attachmentUri) }
             } else {
                 binding.ivAttachment.visibility = View.GONE
+                binding.ivAttachment.isFocusable = false
+                binding.ivAttachment.isFocusableInTouchMode = false
+                binding.ivAttachment.isClickable = false
                 binding.ivAttachment.setOnClickListener(null)
+                binding.bubbleContainer.setOnClickListener(null)
             }
         }
+    }
+
+    private fun openImageViewer(context: android.content.Context, attachmentUri: String) {
+        val intent = Intent(context, ImageViewerActivity::class.java)
+            .putExtra(ImageViewerActivity.EXTRA_IMAGE_URI, attachmentUri)
+        context.startActivity(intent)
     }
 
     inner class FailedViewHolder(

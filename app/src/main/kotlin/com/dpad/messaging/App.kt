@@ -24,12 +24,13 @@ class App : Application() {
         contactHelper = ContactHelper(this)
         Prefs.init(this)
         ThemeManager.applyThemeMode(Prefs.get().appThemeMode)
-        createNotificationChannels()
+        refreshNotificationChannels()
     }
 
-    private fun createNotificationChannels() {
+    fun refreshNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
+            val accent = ThemeManager.accentColor(this)
 
             // Default incoming message channel
             val incomingChannel = NotificationChannel(
@@ -40,6 +41,7 @@ class App : Application() {
                 description = "Incoming SMS and MMS messages"
                 enableVibration(true)
                 enableLights(true)
+                lightColor = accent
             }
             manager.createNotificationChannel(incomingChannel)
 

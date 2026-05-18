@@ -9,6 +9,7 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.bumptech.glide.request.target.Target
 import com.dpad.messaging.R
 import com.dpad.messaging.activities.ImageViewerActivity
 import com.dpad.messaging.databinding.ItemMessageFailedBinding
@@ -102,7 +103,7 @@ class ThreadAdapter(
         private val binding: ItemThreadDateBinding
     ) : RecyclerView.ViewHolder(binding.root) {
         fun bind(item: ThreadItem.DateHeader) {
-            binding.tvDate.text = formatHeaderDate(item.date)
+            binding.tvDate.text = formatHeaderDate(item.date, binding.root.context)
         }
     }
 
@@ -127,6 +128,7 @@ class ThreadAdapter(
                 val attachmentUri = message.attachmentsJson
                 Glide.with(binding.root.context)
                     .load(Uri.parse(attachmentUri))
+                    .override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
                     .into(binding.ivAttachment)
                 binding.ivAttachment.isFocusable = true
                 binding.ivAttachment.isFocusableInTouchMode = true
@@ -167,6 +169,7 @@ class ThreadAdapter(
                 val attachmentUri = message.attachmentsJson
                 Glide.with(binding.root.context)
                     .load(Uri.parse(attachmentUri))
+                    .override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
                     .into(binding.ivAttachment)
                 binding.ivAttachment.isFocusable = true
                 binding.ivAttachment.isFocusableInTouchMode = true
@@ -202,11 +205,20 @@ class ThreadAdapter(
             binding.tvBody.visibility = if (bodyText.isBlank()) View.GONE else View.VISIBLE
             binding.bubbleContainer.background?.mutate()?.setTint(accent)
 
+            if (message.isScheduled) {
+                binding.ivScheduled.visibility = View.VISIBLE
+                binding.tvState.text = binding.root.context.getString(R.string.sending_later)
+            } else {
+                binding.ivScheduled.visibility = View.GONE
+                binding.tvState.text = binding.root.context.getString(R.string.sending)
+            }
+
             if (message.isMms && message.attachmentsJson.startsWith("content://")) {
                 binding.ivAttachment.visibility = View.VISIBLE
                 val attachmentUri = message.attachmentsJson
                 Glide.with(binding.root.context)
                     .load(Uri.parse(attachmentUri))
+                    .override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
                     .into(binding.ivAttachment)
                 binding.ivAttachment.isFocusable = true
                 binding.ivAttachment.isFocusableInTouchMode = true
@@ -251,12 +263,12 @@ class ThreadAdapter(
         return SimpleDateFormat(pattern, Locale.getDefault()).format(Date(timestamp))
     }
 
-    private fun formatHeaderDate(timestamp: Long): String {
+    private fun formatHeaderDate(timestamp: Long, context: android.content.Context): String {
         val now = Calendar.getInstance()
         val msg = Calendar.getInstance().apply { timeInMillis = timestamp }
         return when {
-            isSameDay(now, msg) -> "Today"
-            isYesterday(now, msg) -> "Yesterday"
+            isSameDay(now, msg) -> context.getString(R.string.today)
+            isYesterday(now, msg) -> context.getString(R.string.yesterday)
             diffDays(now, msg) < 7 ->
                 SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(timestamp))
             else ->

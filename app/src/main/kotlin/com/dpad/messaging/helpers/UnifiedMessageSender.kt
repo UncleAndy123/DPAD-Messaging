@@ -6,11 +6,17 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Telephony
 import android.util.Log
+import com.dpad.messaging.App
+import com.dpad.messaging.events.RefreshConversations
+import com.dpad.messaging.events.RefreshMessages
+import com.dpad.messaging.models.Message
 import com.dpad.messaging.receivers.SmsStatusDeliveredReceiver
 import com.dpad.messaging.receivers.SmsStatusSentReceiver
 import com.klinker.android.send_message.Message as KlinkerMessage
 import com.klinker.android.send_message.Settings as KlinkerSettings
 import com.klinker.android.send_message.Transaction as KlinkerTransaction
+import org.json.JSONArray
+import org.greenrobot.eventbus.EventBus
 
 /**
  * Unified send abstraction for SMS + MMS.
@@ -24,7 +30,8 @@ interface UnifiedMessageSender {
         phoneNumber: String,
         body: String,
         threadId: Long,
-        subscriptionId: Int = -1
+        subscriptionId: Int = -1,
+        scheduledMessageId: Long? = null
     )
 
     suspend fun sendMms(
@@ -34,7 +41,8 @@ interface UnifiedMessageSender {
         attachmentUri: Uri?,
         attachmentUris: List<Uri> = emptyList(),
         threadId: Long,
-        subscriptionId: Int = -1
+        subscriptionId: Int = -1,
+        scheduledMessageId: Long? = null
     )
 
     suspend fun sendGroupSmsFanout(
@@ -55,14 +63,16 @@ object LegacyUnifiedMessageSender : UnifiedMessageSender {
         phoneNumber: String,
         body: String,
         threadId: Long,
-        subscriptionId: Int
+        subscriptionId: Int,
+        scheduledMessageId: Long?
     ) {
         SmsSender.send(
             context = context,
             phoneNumber = phoneNumber,
             body = body,
             threadId = threadId,
-            subscriptionId = subscriptionId
+            subscriptionId = subscriptionId,
+            scheduledMessageId = scheduledMessageId
         )
     }
 
@@ -73,7 +83,8 @@ object LegacyUnifiedMessageSender : UnifiedMessageSender {
         attachmentUri: Uri?,
         attachmentUris: List<Uri>,
         threadId: Long,
-        subscriptionId: Int
+        subscriptionId: Int,
+        scheduledMessageId: Long?
     ) {
         MmsSender.send(
             context = context,
@@ -82,7 +93,8 @@ object LegacyUnifiedMessageSender : UnifiedMessageSender {
             attachmentUri = attachmentUri,
             attachmentUris = attachmentUris,
             threadId = threadId,
-            subscriptionId = subscriptionId
+            subscriptionId = subscriptionId,
+            scheduledMessageId = scheduledMessageId
         )
     }
 
@@ -115,14 +127,14 @@ object LegacyUnifiedMessageSender : UnifiedMessageSender {
                 context.contentResolver.insert(
                     Telephony.Sms.CONTENT_URI,
                     ContentValues().apply {
-                        put("address", recipients.joinToString("|"))
-                        put("body", body)
-                        put("type", Telephony.Sms.MESSAGE_TYPE_SENT)
-                        put("thread_id", fallbackThreadId)
-                        put("date", System.currentTimeMillis())
-                        put("date_sent", System.currentTimeMillis())
-                        put("read", 1)
-                        put("seen", 1)
+                        put(Telephony.Sms.ADDRESS, recipients.joinToString("|"))
+                        put(Telephony.Sms.BODY, body)
+                        put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_SENT)
+                        put(Telephony.Sms.THREAD_ID, fallbackThreadId)
+                        put(Telephony.Sms.DATE, System.currentTimeMillis())
+                        put(Telephony.Sms.DATE_SENT, System.currentTimeMillis())
+                        put(Telephony.Sms.READ, 1)
+                        put(Telephony.Sms.SEEN, 1)
                     }
                 )
             }.onFailure { e ->
@@ -145,7 +157,8 @@ object LibraryUnifiedMessageSender : UnifiedMessageSender {
         phoneNumber: String,
         body: String,
         threadId: Long,
-        subscriptionId: Int
+        subscriptionId: Int,
+        scheduledMessageId: Long?
     ) {
         val settings = KlinkerSettings().apply {
             setUseSystemSending(true)
@@ -158,11 +171,17 @@ object LibraryUnifiedMessageSender : UnifiedMessageSender {
             .setExplicitBroadcastForSentSms(
                 Intent(context, SmsStatusSentReceiver::class.java).apply {
                     putExtra(SmsSender.EXTRA_THREAD_ID, threadId)
+                    if (scheduledMessageId != null) {
+                        putExtra(SmsSender.EXTRA_SCHEDULED_MESSAGE_ID, scheduledMessageId)
+                    }
                 }
             )
             .setExplicitBroadcastForDeliveredSms(
                 Intent(context, SmsStatusDeliveredReceiver::class.java).apply {
                     putExtra(SmsSender.EXTRA_THREAD_ID, threadId)
+                    if (scheduledMessageId != null) {
+                        putExtra(SmsSender.EXTRA_SCHEDULED_MESSAGE_ID, scheduledMessageId)
+                    }
                 }
             )
         val message = KlinkerMessage(body, phoneNumber)
@@ -177,7 +196,8 @@ object LibraryUnifiedMessageSender : UnifiedMessageSender {
                 phoneNumber = phoneNumber,
                 body = body,
                 threadId = threadId,
-                subscriptionId = subscriptionId
+                subscriptionId = subscriptionId,
+                scheduledMessageId = scheduledMessageId
             )
         }
     }
@@ -189,7 +209,8 @@ object LibraryUnifiedMessageSender : UnifiedMessageSender {
         attachmentUri: Uri?,
         attachmentUris: List<Uri>,
         threadId: Long,
-        subscriptionId: Int
+        subscriptionId: Int,
+        scheduledMessageId: Long?
     ) {
         // Keep existing MMS path unchanged for phase 2.
         MmsSender.send(
@@ -199,7 +220,8 @@ object LibraryUnifiedMessageSender : UnifiedMessageSender {
             attachmentUri = attachmentUri,
             attachmentUris = attachmentUris,
             threadId = threadId,
-            subscriptionId = subscriptionId
+            subscriptionId = subscriptionId,
+            scheduledMessageId = scheduledMessageId
         )
     }
 
@@ -228,4 +250,100 @@ object MessageSenders {
         } else {
             LegacyUnifiedMessageSender
         }
+
+    suspend fun scheduleSms(
+        context: Context,
+        phoneNumber: String,
+        body: String,
+        threadId: Long,
+        scheduledDate: Long,
+        subscriptionId: Int = -1
+    ): Long {
+        val messageId = generateScheduledMessageId()
+        App.get().database.messagesDao().insertMessage(
+            Message(
+                id = messageId,
+                threadId = threadId,
+                body = body,
+                type = Message.TYPE_QUEUED,
+                date = scheduledDate,
+                dateSent = 0L,
+                read = true,
+                address = phoneNumber,
+                isMms = false,
+                status = Message.STATUS_PENDING,
+                subscriptionId = subscriptionId,
+                isScheduled = true,
+                scheduledDate = scheduledDate
+            )
+        )
+        val inserted = App.get().database.messagesDao().getMessage(messageId)
+        if (inserted != null) {
+            ScheduledMessageScheduler.scheduleAndPersistStatus(
+                context = context,
+                message = inserted,
+                triggerAtMillis = scheduledDate
+            )
+            val refreshed = App.get().database.messagesDao().getMessage(messageId)
+            if (refreshed?.isScheduled == false && refreshed.type == Message.TYPE_FAILED) {
+                EventBus.getDefault().post(RefreshConversations())
+                if (threadId > 0L) EventBus.getDefault().post(RefreshMessages(threadId))
+            }
+        }
+        return messageId
+    }
+
+    suspend fun scheduleMms(
+        context: Context,
+        recipients: List<String>,
+        body: String,
+        attachmentUris: List<Uri>,
+        threadId: Long,
+        scheduledDate: Long,
+        subscriptionId: Int = -1
+    ): Long {
+        val messageId = generateScheduledMessageId()
+        val attachmentsJson = JSONArray(attachmentUris.map { it.toString() }).toString()
+        val participantsJson = JSONArray(recipients).toString()
+
+        App.get().database.messagesDao().insertMessage(
+            Message(
+                id = messageId,
+                threadId = threadId,
+                body = body,
+                type = Message.TYPE_QUEUED,
+                date = scheduledDate,
+                dateSent = 0L,
+                read = true,
+                address = recipients.firstOrNull().orEmpty(),
+                isMms = true,
+                status = Message.STATUS_PENDING,
+                subscriptionId = subscriptionId,
+                isScheduled = true,
+                scheduledDate = scheduledDate,
+                attachmentsJson = attachmentsJson,
+                participantsJson = participantsJson
+            )
+        )
+        val inserted = App.get().database.messagesDao().getMessage(messageId)
+        if (inserted != null) {
+            ScheduledMessageScheduler.scheduleAndPersistStatus(
+                context = context,
+                message = inserted,
+                triggerAtMillis = scheduledDate
+            )
+            val refreshed = App.get().database.messagesDao().getMessage(messageId)
+            if (refreshed?.isScheduled == false && refreshed.type == Message.TYPE_FAILED) {
+                EventBus.getDefault().post(RefreshConversations())
+                if (threadId > 0L) EventBus.getDefault().post(RefreshMessages(threadId))
+            }
+        }
+        return messageId
+    }
+
+    private fun generateScheduledMessageId(): Long {
+        val now = System.currentTimeMillis()
+        val salt = (System.nanoTime() and 0x3FF)
+        return (now shl 10) or salt
+    }
 }

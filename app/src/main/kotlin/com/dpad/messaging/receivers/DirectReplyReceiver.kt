@@ -6,10 +6,9 @@ import android.content.Intent
 import androidx.core.app.RemoteInput
 import com.dpad.messaging.events.RefreshConversations
 import com.dpad.messaging.events.RefreshMessages
+import com.dpad.messaging.helpers.AppCoroutineScopes
 import com.dpad.messaging.helpers.MessageSenders
 import com.dpad.messaging.helpers.NotificationHelper
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 
@@ -35,7 +34,8 @@ class DirectReplyReceiver : BroadcastReceiver() {
 
         // goAsync() keeps the receiver alive while the coroutine runs.
         val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
+        AppCoroutineScopes.io.launch {
+            var sendSucceeded = false
             try {
                 MessageSenders.unified.sendSms(
                     context = context,
@@ -43,10 +43,13 @@ class DirectReplyReceiver : BroadcastReceiver() {
                     body = replyText,
                     threadId = threadId
                 )
+                sendSucceeded = true
                 EventBus.getDefault().post(RefreshMessages(threadId))
                 EventBus.getDefault().post(RefreshConversations())
             } finally {
-                if (notifId != -1) NotificationHelper.cancelNotification(context, notifId)
+                if (sendSucceeded && notifId != -1) {
+                    NotificationHelper.cancelNotification(context, notifId)
+                }
                 pendingResult.finish()
             }
         }

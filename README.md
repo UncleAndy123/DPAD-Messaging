@@ -1,33 +1,24 @@
 # DPAD SMS
 
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-jbriones95-orange?logo=buy-me-a-coffee)](https://buymeacoffee.com/jbriones95)
-
 A messaging app designed for dumbphones with D-pad navigation.
 
 ## Features
 
-- **SMS/MMS Support** - Send and receive text messages and multimedia messages
-- **Group Messaging** - Support for group SMS and MMS conversations
-- **D-Pad Navigation** - Optimized for devices with physical directional buttons
-- **Dark/Light Theme** - System theme following or manual light/dark mode
-- **Accent Colors** - Customizable accent color (Blue, Green, Orange, Rose)
-- **Conversation Management** - Pin, archive, mute, and delete conversations
-- **Recycle Bin** - Soft-delete messages with recovery option
-- **Blocked Keywords** - Filter messages containing specific keywords
-- **Delivery Reports** - Optional delivery status notifications
+- SMS/MMS send and receive
+- Group messaging with fan-out or group MMS
+- D-pad optimized navigation
+- Dark/light theme with customizable accent colors
+- Pin, archive, mute, and delete conversations
+- Recycle bin with recovery
+- Keyword-based message blocking
+- Delivery reports
+- Scheduled messages
+- Contact lookup with auto-suggest
 
 ## Requirements
 
 - Android 6.0+ (API 23+)
-- Device with D-pad navigation support
-
-## Installation
-
-1. Download the latest release APK from the [Releases](https://github.com/jbriones95/DPAD-Messaging/releases) page
-2. Transfer to your device
-3. Enable "Install from unknown sources" in settings
-4. Install the APK
-5. Set as default SMS app
+- Default SMS app permission
 
 ## Building from Source
 
@@ -89,4 +80,4 @@ If you find this app useful, consider supporting its development:
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) file for details.
+MIT

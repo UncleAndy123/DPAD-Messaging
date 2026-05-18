@@ -82,7 +82,7 @@ class NewConversationActivity : BaseActivity() {
         // D-Pad DOWN from back button → recipient field
         binding.btnBack.setOnKeyListener { _, keyCode, event ->
             if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && event.action == KeyEvent.ACTION_DOWN) {
-                binding.btnAddRecipient.requestFocus()
+                binding.etRecipient.requestFocus()
                 true
             } else false
         }

@@ -9,11 +9,12 @@ import android.os.Build
 import android.provider.Telephony
 import android.telephony.SmsMessage
 import android.util.Log
+import com.dpad.messaging.BuildConfig
 import com.dpad.messaging.events.RefreshMessages
+import com.dpad.messaging.helpers.AppCoroutineScopes
+import com.dpad.messaging.helpers.SmsMultipartTracker
 import com.dpad.messaging.helpers.SmsSender
 import com.dpad.messaging.models.Message
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 
@@ -49,7 +50,7 @@ class SmsStatusDeliveredReceiver : BroadcastReceiver() {
         val receiverResultCode = resultCode
         val pendingResult = goAsync()
 
-        CoroutineScope(Dispatchers.IO).launch {
+        AppCoroutineScopes.io.launch {
             try {
                 val msgId = SmsSender.resolveMessageId(intent)
                 val threadId = SmsSender.resolveThreadId(
@@ -59,17 +60,28 @@ class SmsStatusDeliveredReceiver : BroadcastReceiver() {
                 )
 
                 val status = parseDeliveryStatusFromPdu(intent) ?: mapDeliveryStatus(receiverResultCode)
-                Log.d(
-                    "DPAD_MSG",
-                    "SmsStatusDeliveredReceiver.onReceive() msgId=$msgId threadId=$threadId resultCode=$receiverResultCode mappedStatus=$status"
+                val partSuccess = status == Message.STATUS_COMPLETE
+                val partCount = intent.getIntExtra(SmsSender.EXTRA_PART_COUNT, 1)
+                val aggregate = SmsMultipartTracker.recordDelivered(
+                    context = context,
+                    messageId = msgId,
+                    totalParts = partCount,
+                    partSuccess = partSuccess
                 )
+                if (BuildConfig.DEBUG) {
+                    Log.d(
+                        "DPAD_MSG",
+                        "SmsStatusDeliveredReceiver.onReceive() msgId=$msgId threadId=$threadId resultCode=$receiverResultCode mappedStatus=$status"
+                    )
+                }
 
-                if (msgId > 0) {
-                    SmsSender.updateMessageStatus(context, msgId, status)
-                    if (status == Message.STATUS_COMPLETE) {
+                if (msgId > 0 && aggregate.shouldFinalize) {
+                    val finalStatus = if (aggregate.isSuccess) Message.STATUS_COMPLETE else Message.STATUS_FAILED
+                    SmsSender.updateMessageStatus(context, msgId, finalStatus)
+                    if (finalStatus == Message.STATUS_COMPLETE) {
                         context.contentResolver.update(
                             Telephony.Sms.CONTENT_URI,
-                            ContentValues().apply { put("date_sent", System.currentTimeMillis()) },
+                            ContentValues().apply { put(Telephony.Sms.DATE_SENT, System.currentTimeMillis()) },
                             "_id = ?",
                             arrayOf(msgId.toString())
                         )
@@ -98,22 +110,22 @@ class SmsStatusDeliveredReceiver : BroadcastReceiver() {
         return when {
             // GSM / Universal success marker
             resultCode == Activity.RESULT_OK -> {
-                Log.d("DPAD_MSG", "SmsStatusDeliveredReceiver: RESULT_OK (-1) = delivered")
+                if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "SmsStatusDeliveredReceiver: RESULT_OK (-1) = delivered")
                 Message.STATUS_COMPLETE
             }
             // CDMA success: no error (0)
             resultCode == 0 -> {
-                Log.d("DPAD_MSG", "SmsStatusDeliveredReceiver: CDMA code 0 = delivered")
+                if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "SmsStatusDeliveredReceiver: CDMA code 0 = delivered")
                 Message.STATUS_COMPLETE
             }
             // CDMA error codes: 1, 2, 3, 4, 5, 6, 21, 255, or other non-zero values
             resultCode > 0 -> {
-                Log.w("DPAD_MSG", "SmsStatusDeliveredReceiver: CDMA/GSM error code=$resultCode = failed")
+                if (BuildConfig.DEBUG) Log.w("DPAD_MSG", "SmsStatusDeliveredReceiver: CDMA/GSM error code=$resultCode = failed")
                 Message.STATUS_FAILED
             }
             // Unknown result code (e.g., negative values other than RESULT_OK)
             else -> {
-                Log.w("DPAD_MSG", "SmsStatusDeliveredReceiver: unknown resultCode=$resultCode = no status change")
+                if (BuildConfig.DEBUG) Log.w("DPAD_MSG", "SmsStatusDeliveredReceiver: unknown resultCode=$resultCode = no status change")
                 Message.STATUS_NONE
             }
         }

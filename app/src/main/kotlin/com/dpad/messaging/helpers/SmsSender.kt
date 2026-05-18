@@ -30,6 +30,9 @@ object SmsSender {
     const val ACTION_SMS_DELIVERED = "com.dpad.messaging.SMS_DELIVERED"
     const val EXTRA_MESSAGE_ID = "extra_message_id"
     const val EXTRA_THREAD_ID = "extra_thread_id"
+    const val EXTRA_PART_INDEX = "extra_part_index"
+    const val EXTRA_PART_COUNT = "extra_part_count"
+    const val EXTRA_SCHEDULED_MESSAGE_ID = "extra_scheduled_message_id"
     private const val EXTRA_MESSAGE_URI = "message_uri"
 
     fun send(
@@ -37,20 +40,21 @@ object SmsSender {
         phoneNumber: String,
         body: String,
         threadId: Long,
-        subscriptionId: Int = -1
+        subscriptionId: Int = -1,
+        scheduledMessageId: Long? = null
     ) {
         val destination = PhoneNumberUtils.stripSeparators(phoneNumber).ifBlank { phoneNumber }
 
         // 1. Insert TYPE_OUTBOX so the message appears in the thread immediately.
         val cv = ContentValues().apply {
-            put("address", destination)
-            put("body", body)
-            put("type", Telephony.Sms.MESSAGE_TYPE_OUTBOX)
-            put("thread_id", threadId)
-            put("date", System.currentTimeMillis())
-            put("date_sent", 0L)
-            put("read", 1)
-            put("seen", 1)
+            put(Telephony.Sms.ADDRESS, destination)
+            put(Telephony.Sms.BODY, body)
+            put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_OUTBOX)
+            put(Telephony.Sms.THREAD_ID, threadId)
+            put(Telephony.Sms.DATE, System.currentTimeMillis())
+            put(Telephony.Sms.DATE_SENT, 0L)
+            put(Telephony.Sms.READ, 1)
+            put(Telephony.Sms.SEEN, 1)
         }
         val msgUri = try {
             context.contentResolver.insert(Telephony.Sms.CONTENT_URI, cv)
@@ -65,47 +69,83 @@ object SmsSender {
         val reqCode = if (msgId > 0) msgId.toInt()
                       else (System.currentTimeMillis() and 0x7FFFFFFF).toInt()
 
-        val sentPI = PendingIntent.getBroadcast(
-            context,
-            reqCode,
-            Intent(ACTION_SMS_SENT, null, context, SmsStatusSentReceiver::class.java).apply {
-                putExtra(EXTRA_MESSAGE_ID, msgId)
-                putExtra(EXTRA_THREAD_ID, threadId)
-                putExtra(EXTRA_MESSAGE_URI, msgUri?.toString().orEmpty())
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val deliveredPI: PendingIntent? = if (Prefs.get().deliveryReports) {
-            PendingIntent.getBroadcast(
-                context,
-                reqCode + 1,
-                Intent(ACTION_SMS_DELIVERED, null, context, SmsStatusDeliveredReceiver::class.java).apply {
-                    putExtra(EXTRA_MESSAGE_ID, msgId)
-                    putExtra(EXTRA_THREAD_ID, threadId)
-                    putExtra(EXTRA_MESSAGE_URI, msgUri?.toString().orEmpty())
-                },
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-        } else null
-
         // 3. Send.
         val smsManager = getSmsManager(context, subscriptionId)
         val parts = try { smsManager.divideMessage(body) } catch (e: Exception) {
             arrayListOf(body)
         }
+        val partCount = parts.size.coerceAtLeast(1)
 
         try {
             if (parts.size == 1) {
+                val sentPI = PendingIntent.getBroadcast(
+                    context,
+                    reqCode,
+                    Intent(ACTION_SMS_SENT, null, context, SmsStatusSentReceiver::class.java).apply {
+                        putExtra(EXTRA_MESSAGE_ID, msgId)
+                        putExtra(EXTRA_THREAD_ID, threadId)
+                        putExtra(EXTRA_MESSAGE_URI, msgUri?.toString().orEmpty())
+                        putExtra(EXTRA_PART_INDEX, 0)
+                        putExtra(EXTRA_PART_COUNT, partCount)
+                        if (scheduledMessageId != null) putExtra(EXTRA_SCHEDULED_MESSAGE_ID, scheduledMessageId)
+                    },
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                val deliveredPI: PendingIntent? = if (Prefs.get().deliveryReports) {
+                    PendingIntent.getBroadcast(
+                        context,
+                        reqCode + 1,
+                        Intent(ACTION_SMS_DELIVERED, null, context, SmsStatusDeliveredReceiver::class.java).apply {
+                            putExtra(EXTRA_MESSAGE_ID, msgId)
+                            putExtra(EXTRA_THREAD_ID, threadId)
+                            putExtra(EXTRA_MESSAGE_URI, msgUri?.toString().orEmpty())
+                            putExtra(EXTRA_PART_INDEX, 0)
+                            putExtra(EXTRA_PART_COUNT, partCount)
+                            if (scheduledMessageId != null) putExtra(EXTRA_SCHEDULED_MESSAGE_ID, scheduledMessageId)
+                        },
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    )
+                } else null
                 smsManager.sendTextMessage(destination, null, body, sentPI, deliveredPI)
             } else {
-                val sentIntents = ArrayList<PendingIntent>(parts.size).also { list ->
-                    repeat(parts.size) { list.add(sentPI) }
+                val sentIntents = ArrayList<PendingIntent>(parts.size)
+                repeat(parts.size) { index ->
+                    sentIntents.add(
+                        PendingIntent.getBroadcast(
+                            context,
+                            reqCode + index,
+                            Intent(ACTION_SMS_SENT, null, context, SmsStatusSentReceiver::class.java).apply {
+                                putExtra(EXTRA_MESSAGE_ID, msgId)
+                                putExtra(EXTRA_THREAD_ID, threadId)
+                                putExtra(EXTRA_MESSAGE_URI, msgUri?.toString().orEmpty())
+                                putExtra(EXTRA_PART_INDEX, index)
+                                putExtra(EXTRA_PART_COUNT, partCount)
+                                if (scheduledMessageId != null) putExtra(EXTRA_SCHEDULED_MESSAGE_ID, scheduledMessageId)
+                            },
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
+                    )
                 }
                 // Pass null list when delivery reports are disabled.
-                val deliveredIntents: ArrayList<PendingIntent>? = if (deliveredPI != null) {
+                val deliveredIntents: ArrayList<PendingIntent>? = if (Prefs.get().deliveryReports) {
                     ArrayList<PendingIntent>(parts.size).also { list ->
-                        repeat(parts.size) { list.add(deliveredPI) }
+                        repeat(parts.size) { index ->
+                            list.add(
+                                PendingIntent.getBroadcast(
+                                    context,
+                                    reqCode + 10_000 + index,
+                                    Intent(ACTION_SMS_DELIVERED, null, context, SmsStatusDeliveredReceiver::class.java).apply {
+                                        putExtra(EXTRA_MESSAGE_ID, msgId)
+                                        putExtra(EXTRA_THREAD_ID, threadId)
+                                        putExtra(EXTRA_MESSAGE_URI, msgUri?.toString().orEmpty())
+                                        putExtra(EXTRA_PART_INDEX, index)
+                                        putExtra(EXTRA_PART_COUNT, partCount)
+                                        if (scheduledMessageId != null) putExtra(EXTRA_SCHEDULED_MESSAGE_ID, scheduledMessageId)
+                                    },
+                                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                                )
+                            )
+                        }
                     }
                 } else null
                 smsManager.sendMultipartTextMessage(
@@ -126,7 +166,7 @@ object SmsSender {
         try {
             context.contentResolver.update(
                 ContentUris.withAppendedId(Telephony.Sms.CONTENT_URI, msgId),
-                ContentValues().apply { put("type", type) },
+                ContentValues().apply { put(Telephony.Sms.TYPE, type) },
                 null, null
             )
         } catch (e: Exception) {
@@ -139,7 +179,7 @@ object SmsSender {
         try {
             context.contentResolver.update(
                 ContentUris.withAppendedId(Telephony.Sms.CONTENT_URI, msgId),
-                ContentValues().apply { put("status", status) },
+                ContentValues().apply { put(Telephony.Sms.STATUS, status) },
                 null, null
             )
         } catch (e: Exception) {
@@ -167,7 +207,7 @@ object SmsSender {
         return try {
             context.contentResolver.query(
                 ContentUris.withAppendedId(Telephony.Sms.CONTENT_URI, msgId),
-                arrayOf("thread_id"),
+                arrayOf(Telephony.Sms.THREAD_ID),
                 null,
                 null,
                 null

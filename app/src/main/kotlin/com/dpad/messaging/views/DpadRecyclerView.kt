@@ -117,8 +117,7 @@ class DpadRecyclerView @JvmOverloads constructor(
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         // Allow ENTER / DPAD_CENTER to trigger click on the focused child
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
-            focusedChild?.performClick()
-            return true
+            return focusedChild?.performClick() == true || super.onKeyDown(keyCode, event)
         }
         return super.onKeyDown(keyCode, event)
     }

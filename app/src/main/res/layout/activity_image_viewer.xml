@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/imageViewerBg">
@@ -10,9 +11,24 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:adjustViewBounds="true"
-        android:contentDescription="@null"
+        android:contentDescription="@string/image_viewer_content_description"
         android:focusable="true"
         android:focusableInTouchMode="true"
-        android:scaleType="fitCenter" />
+        android:scaleType="matrix" />
+
+    <TextView
+        android:id="@+id/tv_zoom_level"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="@dimen/image_viewer_overlay_margin"
+        android:background="@color/conversationSnippet"
+        android:paddingStart="@dimen/image_viewer_overlay_padding_h"
+        android:paddingTop="@dimen/image_viewer_overlay_padding_v"
+        android:paddingEnd="@dimen/image_viewer_overlay_padding_h"
+        android:paddingBottom="@dimen/image_viewer_overlay_padding_v"
+        android:text="@string/image_viewer_zoom_default"
+        android:textColor="@android:color/white"
+        android:textStyle="bold" />
 
 </FrameLayout>

@@ -30,7 +30,14 @@
     <string name="send">Send</string>
     <string name="next">Next</string>
     <string name="attach">Attach</string>
+    <string name="schedule">Schedule</string>
+    <string name="schedule_set">Set time</string>
+    <string name="schedule_change">Change time</string>
+    <string name="schedule_cancel">Cancel schedule</string>
+    <string name="scheduled_for">Send later: %1$s</string>
+    <string name="schedule_picker_title">Choose send time</string>
     <string name="sending">Sending…</string>
+    <string name="sending_later">Scheduled</string>
     <string name="message_failed">Failed to send. Tap to retry.</string>
     <string name="delivered">Delivered</string>
     <string name="scheduled">Scheduled</string>
@@ -64,8 +71,11 @@
     <string name="enter_name">Enter name…</string>
     <string name="enter_recipients_hint">Add recipients with + or type a number</string>
     <string name="new_thread_hint">Type number and click center or use the + to add contacts</string>
+    <string name="to_label">To:</string>
     <string name="add_recipient">Add recipient</string>
     <string name="remove_recipient">Remove recipient</string>
+    <string name="today">Today</string>
+    <string name="yesterday">Yesterday</string>
 
     <!-- ─── Permissions ─── -->
     <string name="permission_sms_title">SMS Permission Needed</string>
@@ -163,6 +173,11 @@
     <string name="sms_send_error_null_pdu">SMS failed: invalid message payload.</string>
     <string name="sms_send_error_no_service">SMS failed: no cellular service.</string>
     <string name="sms_send_error_unknown">SMS failed (code %1$d).</string>
+    <string name="scheduled_send_failed_title">Scheduled message failed</string>
+    <string name="scheduled_send_failed_body">A scheduled message could not be sent.</string>
+    <string name="scheduled_send_failed_exact_alarm_body">Scheduled send failed because exact alarms are unavailable.</string>
+    <string name="scheduled_send_inexact_title">Scheduled send may be delayed</string>
+    <string name="scheduled_send_inexact_body">Exact alarms are unavailable; scheduled send will run approximately on time.</string>
 
     <!-- ─── SIM / Dual-SIM ─── -->
     <string name="select_sim">Select SIM</string>
@@ -174,5 +189,15 @@
     <string name="mms_failed">Failed to send MMS.</string>
     <string name="attachment_too_large">Image too large to send.</string>
     <string name="image_attached">Image attached</string>
+    <string name="image_attachment_preview">Image attachment preview</string>
+    <string name="image_viewer_content_description">Image viewer</string>
+    <string name="image_viewer_zoom_default">100%%</string>
     <string name="tap_to_remove_number">Tap to remove number: %s</string>
+
+    <!-- Schedule picker labels -->
+    <string name="schedule_year">Year</string>
+    <string name="schedule_month">Month</string>
+    <string name="schedule_day">Day</string>
+    <string name="schedule_hour">Hour</string>
+    <string name="schedule_minute">Minute</string>
 </resources>

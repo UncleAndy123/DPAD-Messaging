@@ -33,6 +33,8 @@
     <!-- Image attachment max size to scale with bubble -->
     <dimen name="attachment_image_width">160sp</dimen>
     <dimen name="attachment_image_height">120sp</dimen>
+    <dimen name="attachment_preview_width">60dp</dimen>
+    <dimen name="attachment_preview_height">45dp</dimen>
 
     <!-- ─── Compose Bar ─── -->
     <dimen name="compose_bar_height">40dp</dimen>
@@ -72,4 +74,23 @@
     <dimen name="recipient_chip_margin_end">6dp</dimen>
     <dimen name="recipient_chip_corner_radius">10dp</dimen>
     <dimen name="recipient_chip_text_size">12sp</dimen>
+
+    <!-- ─── Image viewer overlay ─── -->
+    <dimen name="image_viewer_overlay_margin">12dp</dimen>
+    <dimen name="image_viewer_overlay_padding_h">8dp</dimen>
+    <dimen name="image_viewer_overlay_padding_v">4dp</dimen>
+
+    <!-- ─── Schedule picker ─── -->
+    <dimen name="schedule_picker_padding">12dp</dimen>
+    <dimen name="schedule_picker_label_width">72dp</dimen>
+    <dimen name="schedule_picker_stepper_size">40dp</dimen>
+
+    <!-- ─── Bottom sheet ─── -->
+    <dimen name="bottom_sheet_handle_width">40dp</dimen>
+    <dimen name="bottom_sheet_handle_height">4dp</dimen>
+
+    <!-- ─── Conversation row indicators ─── -->
+    <dimen name="conversation_indicator_size">12dp</dimen>
+    <dimen name="conversation_indicator_margin_start">2dp</dimen>
+    <dimen name="conversation_menu_button_size">28dp</dimen>
 </resources>

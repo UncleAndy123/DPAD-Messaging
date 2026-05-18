@@ -70,6 +70,9 @@ data class Message(
     @ColumnInfo(name = "is_scheduled")
     val isScheduled: Boolean = false,
 
+    @ColumnInfo(name = "scheduled_date")
+    val scheduledDate: Long? = null,
+
     /** JSON array of Attachment objects – populated only for MMS */
     @ColumnInfo(name = "attachments_json")
     val attachmentsJson: String = "[]",

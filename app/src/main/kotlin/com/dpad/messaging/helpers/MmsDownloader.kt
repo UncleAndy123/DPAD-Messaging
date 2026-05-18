@@ -14,6 +14,7 @@ import java.net.InetSocketAddress
 import java.net.Proxy
 import java.io.IOException
 import com.dpad.messaging.App
+import com.dpad.messaging.BuildConfig
 import com.dpad.messaging.events.RefreshConversations
 import com.dpad.messaging.events.RefreshMessages
 import com.dpad.messaging.extensions.getOwnPhoneNumbers
@@ -54,6 +55,24 @@ object MmsDownloader {
     private const val ADDR_TYPE_FROM = 137
     private const val ADDR_TYPE_TO   = 151
 
+    private inline fun d(message: () -> String) {
+        if (BuildConfig.DEBUG) Log.d(TAG, message())
+    }
+
+    private inline fun w(message: () -> String) {
+        if (BuildConfig.DEBUG) Log.w(TAG, message())
+    }
+
+    private inline fun w(message: () -> String, t: Throwable) {
+        if (BuildConfig.DEBUG) Log.w(TAG, message(), t)
+    }
+
+    private inline fun e(message: () -> String, t: Throwable? = null) {
+        if (BuildConfig.DEBUG) {
+            if (t != null) Log.e(TAG, message(), t) else Log.e(TAG, message())
+        }
+    }
+
     // ── Public API ────────────────────────────────────────────────────────────
 
     /**
@@ -67,28 +86,28 @@ object MmsDownloader {
         @Suppress("UNUSED_PARAMETER") subId: Int,
         msgId: Long
     ) {
-        Log.d(TAG, "MmsDownloader.download() url=$contentLocation msgId=$msgId")
+        d { "MmsDownloader.download() url=$contentLocation msgId=$msgId" }
 
         try {
             // 1. Acquire MMS network
             val network = acquireMmsNetwork(context)
                 ?: throw Exception("Could not acquire MMS cellular network within ${NETWORK_TIMEOUT_MS}ms")
-            Log.d(TAG, "MmsDownloader: acquired MMS network $network")
+            d { "MmsDownloader: acquired MMS network $network" }
 
             // 2. Download PDU
             val pduBytes = downloadPdu(context, network, contentLocation)
-            Log.d(TAG, "MmsDownloader: PDU size=${pduBytes.size}")
+            d { "MmsDownloader: PDU size=${pduBytes.size}" }
 
             // 3. Parse PDU
             val parsed = MmsPduParser.parse(pduBytes)
                 ?: throw Exception("MmsPduParser returned null — malformed PDU?")
-            Log.d(TAG, "MmsDownloader: from='${parsed.from}' subject='${parsed.subject}' textLen=${parsed.textBody.length} images=${parsed.imageParts.size}")
+            d { "MmsDownloader: from='${parsed.from}' subject='${parsed.subject}' textLen=${parsed.textBody.length} images=${parsed.imageParts.size}" }
 
             // 4–6. Store and notify
             storeMms(context, msgId, parsed)
 
         } catch (e: Exception) {
-            Log.e(TAG, "MmsDownloader.download() failed — deleting placeholder msgId=$msgId", e)
+            e({ "MmsDownloader.download() failed - deleting placeholder msgId=$msgId" }, e)
             deletePlaceholder(context, msgId)
             EventBus.getDefault().post(RefreshConversations())
         }
@@ -113,11 +132,11 @@ object MmsDownloader {
 
                 val callback = object : ConnectivityManager.NetworkCallback() {
                     override fun onAvailable(network: Network) {
-                        Log.d(TAG, "MmsDownloader: onAvailable $network")
+                        d { "MmsDownloader: onAvailable $network" }
                         if (cont.isActive) cont.resume(network)
                     }
                     override fun onUnavailable() {
-                        Log.w(TAG, "MmsDownloader: onUnavailable")
+                        w { "MmsDownloader: onUnavailable" }
                         if (cont.isActive) cont.resumeWithException(
                             Exception("MMS network unavailable — carrier may not support MMS APN")
                         )
@@ -170,9 +189,19 @@ object MmsDownloader {
                 }
             }
         } catch (e: SecurityException) {
-            Log.w(TAG, "No permission to read APN settings for proxy detection", e)
+            w({ "No permission to read APN settings for proxy detection" }, e)
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to read APN settings for proxy detection", e)
+            w({ "Failed to read APN settings for proxy detection" }, e)
+        }
+
+        if (proxyHost.isNullOrBlank()) {
+            val prefHost = Prefs.get().mmsProxyHost.takeIf { it.isNotBlank() }
+            val prefPort = Prefs.get().mmsProxyPort.takeIf { it > 0 }
+            if (!prefHost.isNullOrBlank()) {
+                proxyHost = prefHost
+                proxyPort = prefPort ?: 80
+                d { "MmsDownloader: using configured MMS proxy $proxyHost:$proxyPort" }
+            }
         }
 
         var connection: HttpURLConnection? = null
@@ -191,7 +220,7 @@ object MmsDownloader {
                         }
                         bound = true
                     } catch (e: Exception) {
-                        Log.w(TAG, "Failed to bind process to MMS network", e)
+                        w({ "Failed to bind process to MMS network" }, e)
                     }
                 }
 
@@ -221,7 +250,7 @@ object MmsDownloader {
             connection.connect()
 
             val code = connection.responseCode
-            Log.d(TAG, "MmsDownloader: HTTP $code from $urlString")
+            d { "MmsDownloader: HTTP $code from $urlString" }
             if (code != HttpURLConnection.HTTP_OK) {
                 throw Exception("MMSC returned HTTP $code for $urlString")
             }
@@ -264,7 +293,7 @@ object MmsDownloader {
                 }
                 .forEach { add(it) }
         }
-        Log.d(TAG, "MmsDownloader.storeMms() msgId=$msgId participants=$allParticipants")
+        d { "MmsDownloader.storeMms() msgId=$msgId participants=$allParticipants" }
 
         // Resolve (or create) the thread ID for this conversation.
         val threadId: Long = if (allParticipants.isNotEmpty()) {
@@ -275,12 +304,12 @@ object MmsDownloader {
                     Telephony.Threads.getOrCreateThreadId(context, allParticipants)
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "MmsDownloader: getOrCreateThreadId failed for $allParticipants", e)
+                w({ "MmsDownloader: getOrCreateThreadId failed for $allParticipants" }, e)
                 0L
             }
         } else 0L
 
-        Log.d(TAG, "MmsDownloader.storeMms() threadId=$threadId")
+        d { "MmsDownloader.storeMms() threadId=$threadId" }
 
         // ── Update the placeholder pdu row ────────────────────────────────────
         val pduCv = ContentValues().apply {
@@ -293,9 +322,9 @@ object MmsDownloader {
         }
         try {
             val updated = cr.update(Uri.parse("content://mms/$msgId"), pduCv, null, null)
-            Log.d(TAG, "MmsDownloader: updated pdu row msgId=$msgId rows=$updated")
+            d { "MmsDownloader: updated pdu row msgId=$msgId rows=$updated" }
         } catch (e: Exception) {
-            Log.e(TAG, "MmsDownloader: failed to update pdu row", e)
+            e({ "MmsDownloader: failed to update pdu row" }, e)
         }
 
         // ── Insert text/plain part ─────────────────────────────────────────────
@@ -308,9 +337,9 @@ object MmsDownloader {
             }
             try {
                 cr.insert(Uri.parse("content://mms/$msgId/part"), textCv)
-                Log.d(TAG, "MmsDownloader: inserted text part for msgId=$msgId")
+                d { "MmsDownloader: inserted text part for msgId=$msgId" }
             } catch (e: Exception) {
-                Log.e(TAG, "MmsDownloader: failed to insert text part", e)
+                e({ "MmsDownloader: failed to insert text part" }, e)
             }
         }
 
@@ -324,12 +353,12 @@ object MmsDownloader {
                 val partUri = cr.insert(Uri.parse("content://mms/$msgId/part"), imgCv)
                 if (partUri != null) {
                     cr.openOutputStream(partUri)?.use { it.write(imgPart.data) }
-                    Log.d(TAG, "MmsDownloader: inserted image[$index] ${imgPart.mimeType} ${imgPart.data.size}B -> $partUri")
+                    d { "MmsDownloader: inserted image[$index] ${imgPart.mimeType} ${imgPart.data.size}B -> $partUri" }
                 } else {
-                    Log.w(TAG, "MmsDownloader: insert returned null for image part[$index]")
+                    w { "MmsDownloader: insert returned null for image part[$index]" }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "MmsDownloader: failed to insert image part[$index]", e)
+                e({ "MmsDownloader: failed to insert image part[$index]" }, e)
             }
         }
 
@@ -343,7 +372,7 @@ object MmsDownloader {
             try {
                 cr.insert(Uri.parse("content://mms/$msgId/addr"), fromCv)
             } catch (e: Exception) {
-                Log.e(TAG, "MmsDownloader: failed to insert FROM addr", e)
+                e({ "MmsDownloader: failed to insert FROM addr" }, e)
             }
         }
 
@@ -362,7 +391,7 @@ object MmsDownloader {
                 try {
                     cr.insert(Uri.parse("content://mms/$msgId/addr"), toCv)
                 } catch (e: Exception) {
-                    Log.w(TAG, "MmsDownloader: failed to insert TO addr '$toAddr'", e)
+                    w({ "MmsDownloader: failed to insert TO addr '$toAddr'" }, e)
                 }
             }
         } else {
@@ -375,7 +404,7 @@ object MmsDownloader {
             try {
                 cr.insert(Uri.parse("content://mms/$msgId/addr"), toCv)
             } catch (e: Exception) {
-                Log.w(TAG, "MmsDownloader: failed to insert TO addr placeholder", e)
+                w({ "MmsDownloader: failed to insert TO addr placeholder" }, e)
             }
         }
 
@@ -396,7 +425,7 @@ object MmsDownloader {
             EventBus.getDefault().post(RefreshMessages(threadId))
         }
 
-        Log.d(TAG, "MmsDownloader.storeMms() done msgId=$msgId threadId=$threadId blocked=$isBlocked")
+        d { "MmsDownloader.storeMms() done msgId=$msgId threadId=$threadId blocked=$isBlocked" }
     }
 
     // ── Cleanup ───────────────────────────────────────────────────────────────
@@ -405,9 +434,9 @@ object MmsDownloader {
         if (msgId <= 0L) return
         try {
             context.contentResolver.delete(Uri.parse("content://mms/$msgId"), null, null)
-            Log.d(TAG, "MmsDownloader: deleted placeholder msgId=$msgId")
+            d { "MmsDownloader: deleted placeholder msgId=$msgId" }
         } catch (e: Exception) {
-            Log.w(TAG, "MmsDownloader: could not delete placeholder msgId=$msgId", e)
+            w({ "MmsDownloader: could not delete placeholder msgId=$msgId" }, e)
         }
     }
 }

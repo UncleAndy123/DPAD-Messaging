@@ -20,6 +20,15 @@ interface MessagesDao {
     @Query("SELECT * FROM messages WHERE id = :id")
     suspend fun getMessage(id: Long): Message?
 
+    @Query("SELECT * FROM messages WHERE is_scheduled = 1 AND scheduled_date > :timestamp ORDER BY scheduled_date ASC")
+    suspend fun getScheduledMessagesAfter(timestamp: Long): List<Message>
+
+    @Query("SELECT * FROM messages WHERE is_scheduled = 1 AND scheduled_date IS NOT NULL AND scheduled_date <= :timestamp ORDER BY scheduled_date ASC")
+    suspend fun getPastDueScheduledMessages(timestamp: Long): List<Message>
+
+    @Query("SELECT * FROM messages WHERE is_scheduled = 1 AND scheduled_date IS NOT NULL ORDER BY scheduled_date ASC LIMIT 1")
+    suspend fun getNextPendingScheduledMessage(): Message?
+
     @Query("SELECT * FROM messages WHERE body LIKE '%' || :query || '%' ORDER BY date DESC LIMIT 50")
     suspend fun searchMessages(query: String): List<Message>
 

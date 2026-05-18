@@ -9,11 +9,14 @@ import android.telephony.SmsManager
 import android.util.Log
 import android.widget.Toast
 import com.dpad.messaging.R
+import com.dpad.messaging.App
+import com.dpad.messaging.BuildConfig
 import com.dpad.messaging.events.RefreshConversations
 import com.dpad.messaging.events.RefreshMessages
+import com.dpad.messaging.helpers.AppCoroutineScopes
+import com.dpad.messaging.helpers.SmsMultipartTracker
 import com.dpad.messaging.helpers.SmsSender
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import com.dpad.messaging.models.Message
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 
@@ -40,7 +43,7 @@ class SmsStatusSentReceiver : BroadcastReceiver() {
         val receiverResultCode = resultCode
         val pendingResult = goAsync()
 
-        CoroutineScope(Dispatchers.IO).launch {
+        AppCoroutineScopes.io.launch {
             try {
                 val msgId = SmsSender.resolveMessageId(intent)
                 val threadId = SmsSender.resolveThreadId(
@@ -49,22 +52,54 @@ class SmsStatusSentReceiver : BroadcastReceiver() {
                     fallbackThreadId = intent.getLongExtra(SmsSender.EXTRA_THREAD_ID, -1L)
                 )
                 val success = receiverResultCode == Activity.RESULT_OK
-
-                Log.d(
-                    "DPAD_MSG",
-                    "SmsStatusSentReceiver.onReceive() msgId=$msgId threadId=$threadId resultCode=$receiverResultCode success=$success"
+                val partCount = intent.getIntExtra(SmsSender.EXTRA_PART_COUNT, 1)
+                val scheduledMessageId = intent.getLongExtra(SmsSender.EXTRA_SCHEDULED_MESSAGE_ID, -1L)
+                val aggregate = SmsMultipartTracker.recordSent(
+                    context = context,
+                    messageId = msgId,
+                    totalParts = partCount,
+                    partSuccess = success
                 )
 
-                val messageType = if (success) {
-                    Log.d("DPAD_MSG", "SmsStatusSentReceiver: SMS sent successfully")
+                if (BuildConfig.DEBUG) {
+                    Log.d(
+                        "DPAD_MSG",
+                        "SmsStatusSentReceiver.onReceive() msgId=$msgId threadId=$threadId resultCode=$receiverResultCode success=$success"
+                    )
+                }
+
+                if (!aggregate.shouldFinalize) {
+                    return@launch
+                }
+
+                val messageType = if (aggregate.isSuccess) {
+                    if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "SmsStatusSentReceiver: SMS sent successfully")
                     Telephony.Sms.MESSAGE_TYPE_SENT
                 } else {
-                    Log.w("DPAD_MSG", "SmsStatusSentReceiver: SMS send failed with code=$receiverResultCode")
+                    if (BuildConfig.DEBUG) Log.w("DPAD_MSG", "SmsStatusSentReceiver: SMS send failed with code=$receiverResultCode")
                     showFailureToast(context, receiverResultCode)
                     Telephony.Sms.MESSAGE_TYPE_FAILED
                 }
 
                 SmsSender.updateMessageType(context, msgId, messageType)
+
+                if (scheduledMessageId > 0L) {
+                    val dao = App.get().database.messagesDao()
+                    val scheduled = dao.getMessage(scheduledMessageId)
+                    if (aggregate.isSuccess) {
+                        dao.deleteMessage(scheduledMessageId)
+                    } else if (scheduled != null) {
+                        dao.updateMessage(
+                            scheduled.copy(
+                                type = Message.TYPE_FAILED,
+                                status = Message.STATUS_FAILED,
+                                isScheduled = false,
+                                scheduledDate = null,
+                                dateSent = System.currentTimeMillis()
+                            )
+                        )
+                    }
+                }
 
                 EventBus.getDefault().post(RefreshConversations())
                 if (threadId > 0) EventBus.getDefault().post(RefreshMessages(threadId))
@@ -82,7 +117,7 @@ class SmsStatusSentReceiver : BroadcastReceiver() {
             SmsManager.RESULT_ERROR_NO_SERVICE -> context.getString(R.string.sms_send_error_no_service)
             else -> context.getString(R.string.sms_send_error_unknown, resultCode)
         }
-        CoroutineScope(Dispatchers.Main).launch {
+        AppCoroutineScopes.main.launch {
             Toast.makeText(context.applicationContext, message, Toast.LENGTH_SHORT).show()
         }
     }

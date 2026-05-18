@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:fillViewport="true"
+    android:descendantFocusability="afterDescendants">
+
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="@dimen/schedule_picker_padding">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="@dimen/schedule_picker_label_width"
+            android:layout_height="wrap_content"
+            android:text="@string/schedule_year" />
+
+        <Button
+            android:id="@+id/btn_year_minus"
+            android:layout_width="@dimen/schedule_picker_stepper_size"
+            android:layout_height="@dimen/schedule_picker_stepper_size"
+            android:text="-" />
+
+        <TextView
+            android:id="@+id/tv_year"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btn_year_plus"
+            android:layout_width="@dimen/schedule_picker_stepper_size"
+            android:layout_height="@dimen/schedule_picker_stepper_size"
+            android:text="+" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="@dimen/schedule_picker_label_width"
+            android:layout_height="wrap_content"
+            android:text="@string/schedule_month" />
+
+        <Button
+            android:id="@+id/btn_month_minus"
+            android:layout_width="@dimen/schedule_picker_stepper_size"
+            android:layout_height="@dimen/schedule_picker_stepper_size"
+            android:text="-" />
+
+        <TextView
+            android:id="@+id/tv_month"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btn_month_plus"
+            android:layout_width="@dimen/schedule_picker_stepper_size"
+            android:layout_height="@dimen/schedule_picker_stepper_size"
+            android:text="+" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="@dimen/schedule_picker_label_width"
+            android:layout_height="wrap_content"
+            android:text="@string/schedule_day" />
+
+        <Button
+            android:id="@+id/btn_day_minus"
+            android:layout_width="@dimen/schedule_picker_stepper_size"
+            android:layout_height="@dimen/schedule_picker_stepper_size"
+            android:text="-" />
+
+        <TextView
+            android:id="@+id/tv_day"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btn_day_plus"
+            android:layout_width="@dimen/schedule_picker_stepper_size"
+            android:layout_height="@dimen/schedule_picker_stepper_size"
+            android:text="+" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="@dimen/schedule_picker_label_width"
+            android:layout_height="wrap_content"
+            android:text="@string/schedule_hour" />
+
+        <Button
+            android:id="@+id/btn_hour_minus"
+            android:layout_width="@dimen/schedule_picker_stepper_size"
+            android:layout_height="@dimen/schedule_picker_stepper_size"
+            android:text="-" />
+
+        <TextView
+            android:id="@+id/tv_hour"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btn_hour_plus"
+            android:layout_width="@dimen/schedule_picker_stepper_size"
+            android:layout_height="@dimen/schedule_picker_stepper_size"
+            android:text="+" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="@dimen/schedule_picker_label_width"
+            android:layout_height="wrap_content"
+            android:text="@string/schedule_minute" />
+
+        <Button
+            android:id="@+id/btn_minute_minus"
+            android:layout_width="@dimen/schedule_picker_stepper_size"
+            android:layout_height="@dimen/schedule_picker_stepper_size"
+            android:text="-" />
+
+        <TextView
+            android:id="@+id/tv_minute"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btn_minute_plus"
+            android:layout_width="@dimen/schedule_picker_stepper_size"
+            android:layout_height="@dimen/schedule_picker_stepper_size"
+            android:text="+" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tv_schedule_preview"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:textStyle="bold" />
+
+    </LinearLayout>
+
+</ScrollView>

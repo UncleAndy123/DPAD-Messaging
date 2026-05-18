@@ -5,9 +5,13 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import com.dpad.messaging.databases.MessagesDatabase
+import com.dpad.messaging.helpers.AppCoroutineScopes
 import com.dpad.messaging.helpers.ContactHelper
 import com.dpad.messaging.helpers.Prefs
+import com.dpad.messaging.helpers.ScheduledMessageIntegrityChecker
 import com.dpad.messaging.helpers.ThemeManager
+import com.dpad.messaging.receivers.RescheduleAlarmsReceiver
+import kotlinx.coroutines.launch
 
 class App : Application() {
 
@@ -25,6 +29,15 @@ class App : Application() {
         Prefs.init(this)
         ThemeManager.applyThemeMode(Prefs.get().appThemeMode)
         refreshNotificationChannels()
+        AppCoroutineScopes.io.launch {
+            RescheduleAlarmsReceiver.reschedulePending(this@App)
+            ScheduledMessageIntegrityChecker.run(this@App)
+        }
+    }
+
+    override fun onTerminate() {
+        super.onTerminate()
+        AppCoroutineScopes.cancelAll()
     }
 
     fun refreshNotificationChannels() {

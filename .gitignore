@@ -29,3 +29,6 @@ Thumbs.db
 # OS
 .DS_Store
 Thumbs.db
+
+# Release keystore (generated locally, not committed)
+release.keystore

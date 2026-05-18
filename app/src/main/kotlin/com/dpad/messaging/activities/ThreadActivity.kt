@@ -28,7 +28,9 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.Glide
+import com.bumptech.glide.request.target.Target
 import com.dpad.messaging.App
+import com.dpad.messaging.BuildConfig
 import com.dpad.messaging.R
 import com.dpad.messaging.adapters.ThreadAdapter
 import com.dpad.messaging.databinding.ActivityThreadBinding
@@ -51,6 +53,10 @@ import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import java.io.File
+import java.text.DateFormat
+import java.util.Calendar
+import kotlin.math.max
+import kotlin.math.min
 
 class ThreadActivity : BaseActivity() {
 
@@ -76,6 +82,7 @@ class ThreadActivity : BaseActivity() {
     private var pendingAttachmentUri: Uri? = null
     private val pendingAttachmentUris = mutableListOf<Uri>()
     private var pendingCameraUri: Uri? = null
+    private var pendingScheduledAtMillis: Long? = null
 
     private lateinit var attachmentPickerLauncher: ActivityResultLauncher<Array<String>>
     private lateinit var contactPickerLauncher: ActivityResultLauncher<Void?>
@@ -236,6 +243,7 @@ class ThreadActivity : BaseActivity() {
         binding.btnCall.imageTintList = tint
         binding.btnDetails.imageTintList = tint
         binding.btnAttach.imageTintList = tint
+        binding.btnSchedule.imageTintList = tint
         binding.btnSim.setTextColor(accent)
         // btnRemoveAttachment uses its XML fill color — no tinting needed, keeps icon always visible.
 
@@ -243,6 +251,7 @@ class ThreadActivity : BaseActivity() {
         binding.btnCall.backgroundTintList = tint
         binding.btnDetails.backgroundTintList = tint
         binding.btnAttach.backgroundTintList = tint
+        binding.btnSchedule.backgroundTintList = tint
         binding.btnSend.backgroundTintList = tint
         binding.btnSim.backgroundTintList = tint
 
@@ -317,12 +326,21 @@ class ThreadActivity : BaseActivity() {
                 else -> false
             }
         }
+        binding.btnSchedule.setOnKeyListener { _, keyCode, event ->
+            when {
+                keyCode == KeyEvent.KEYCODE_DPAD_UP && event.action == KeyEvent.ACTION_DOWN -> {
+                    goUpFromCompose(); true
+                }
+                else -> false
+            }
+        }
         binding.btnSim.setOnKeyListener { _, keyCode, event ->
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP && event.action == KeyEvent.ACTION_DOWN) {
                 goUpFromCompose(); true
             } else false
         }
         binding.btnSim.setOnClickListener { showSimPicker() }
+        binding.btnSchedule.setOnClickListener { showScheduleOptions() }
 
         // Attachment preview strip
         binding.btnRemoveAttachment.setOnClickListener { clearAttachment() }
@@ -388,6 +406,7 @@ class ThreadActivity : BaseActivity() {
 
         // Compose bar gets initial focus
         binding.etMessage.requestFocus()
+        updateScheduledUi()
     }
 
     // ─── Attachment preview ─────────────────────────────────────────────────
@@ -399,6 +418,7 @@ class ThreadActivity : BaseActivity() {
             Glide.with(this)
                 .load(uri)
                 .centerCrop()
+                .override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
                 .into(binding.ivAttachmentPreview)
         } else {
             binding.ivAttachmentPreview.setImageResource(R.drawable.ic_attach)
@@ -561,17 +581,154 @@ class ThreadActivity : BaseActivity() {
         } else {
             binding.tvCharCount.visibility = View.GONE
         }
+
+        updateScheduledUi()
+    }
+
+    private fun updateScheduledUi() {
+        val millis = pendingScheduledAtMillis
+        if (millis == null) {
+            binding.tvScheduledTime.visibility = View.GONE
+            binding.btnSchedule.alpha = 0.85f
+            return
+        }
+        val formatted = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(millis)
+        binding.tvScheduledTime.text = getString(R.string.scheduled_for, formatted)
+        binding.tvScheduledTime.visibility = View.VISIBLE
+        binding.btnSchedule.alpha = 1f
+    }
+
+    private fun showScheduleOptions() {
+        val popup = PopupMenu(ThemeManager.popupMenuContext(this), binding.btnSchedule)
+        if (pendingScheduledAtMillis == null) {
+            popup.menu.add(0, 1, 0, getString(R.string.schedule_set))
+        } else {
+            popup.menu.add(0, 2, 0, getString(R.string.schedule_change))
+            popup.menu.add(0, 3, 1, getString(R.string.schedule_cancel))
+        }
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                1, 2 -> openSchedulePicker()
+                3 -> {
+                    pendingScheduledAtMillis = null
+                    updateScheduledUi()
+                }
+            }
+            true
+        }
+        popup.show()
+    }
+
+    private fun openSchedulePicker() {
+        val seed = Calendar.getInstance().apply {
+            timeInMillis = pendingScheduledAtMillis ?: System.currentTimeMillis()
+            add(Calendar.MINUTE, if (pendingScheduledAtMillis == null) 5 else 0)
+        }
+
+        val pickerView = layoutInflater.inflate(R.layout.dialog_schedule_picker, null)
+        val calendar = (seed.clone() as Calendar).apply {
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+
+        val tvYear = pickerView.findViewById<android.widget.TextView>(R.id.tv_year)
+        val tvMonth = pickerView.findViewById<android.widget.TextView>(R.id.tv_month)
+        val tvDay = pickerView.findViewById<android.widget.TextView>(R.id.tv_day)
+        val tvHour = pickerView.findViewById<android.widget.TextView>(R.id.tv_hour)
+        val tvMinute = pickerView.findViewById<android.widget.TextView>(R.id.tv_minute)
+        val tvPreview = pickerView.findViewById<android.widget.TextView>(R.id.tv_schedule_preview)
+
+        fun maxDayForCurrentMonth(): Int {
+            return calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+        }
+
+        fun refreshFields() {
+            val use24h = Prefs.get().timeFormat == Prefs.TIME_FORMAT_24H
+            val monthName = java.text.DateFormatSymbols.getInstance().months[calendar.get(Calendar.MONTH)]
+            tvYear.text = calendar.get(Calendar.YEAR).toString()
+            tvMonth.text = monthName
+            tvDay.text = calendar.get(Calendar.DAY_OF_MONTH).toString()
+            tvHour.text = if (use24h) {
+                String.format(java.util.Locale.getDefault(), "%02d", calendar.get(Calendar.HOUR_OF_DAY))
+            } else {
+                val h = calendar.get(Calendar.HOUR)
+                val hour12 = if (h == 0) 12 else h
+                String.format(
+                    java.util.Locale.getDefault(),
+                    "%02d %s",
+                    hour12,
+                    if (calendar.get(Calendar.AM_PM) == Calendar.AM) "AM" else "PM"
+                )
+            }
+            tvMinute.text = String.format(java.util.Locale.getDefault(), "%02d", calendar.get(Calendar.MINUTE))
+            tvPreview.text = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+                .format(calendar.timeInMillis)
+        }
+
+        fun adjust(field: Int, delta: Int) {
+            when (field) {
+                Calendar.YEAR -> {
+                    calendar.add(Calendar.YEAR, delta)
+                    calendar.set(Calendar.DAY_OF_MONTH, min(calendar.get(Calendar.DAY_OF_MONTH), maxDayForCurrentMonth()))
+                }
+                Calendar.MONTH -> {
+                    calendar.add(Calendar.MONTH, delta)
+                    calendar.set(Calendar.DAY_OF_MONTH, min(calendar.get(Calendar.DAY_OF_MONTH), maxDayForCurrentMonth()))
+                }
+                Calendar.DAY_OF_MONTH -> {
+                    calendar.add(Calendar.DAY_OF_MONTH, delta)
+                }
+                Calendar.HOUR_OF_DAY -> {
+                    calendar.add(Calendar.HOUR_OF_DAY, delta)
+                }
+                Calendar.MINUTE -> {
+                    calendar.add(Calendar.MINUTE, delta)
+                }
+            }
+            refreshFields()
+        }
+
+        pickerView.findViewById<android.widget.Button>(R.id.btn_year_minus).setOnClickListener { adjust(Calendar.YEAR, -1) }
+        pickerView.findViewById<android.widget.Button>(R.id.btn_year_plus).setOnClickListener { adjust(Calendar.YEAR, 1) }
+        pickerView.findViewById<android.widget.Button>(R.id.btn_month_minus).setOnClickListener { adjust(Calendar.MONTH, -1) }
+        pickerView.findViewById<android.widget.Button>(R.id.btn_month_plus).setOnClickListener { adjust(Calendar.MONTH, 1) }
+        pickerView.findViewById<android.widget.Button>(R.id.btn_day_minus).setOnClickListener { adjust(Calendar.DAY_OF_MONTH, -1) }
+        pickerView.findViewById<android.widget.Button>(R.id.btn_day_plus).setOnClickListener { adjust(Calendar.DAY_OF_MONTH, 1) }
+        pickerView.findViewById<android.widget.Button>(R.id.btn_hour_minus).setOnClickListener { adjust(Calendar.HOUR_OF_DAY, -1) }
+        pickerView.findViewById<android.widget.Button>(R.id.btn_hour_plus).setOnClickListener { adjust(Calendar.HOUR_OF_DAY, 1) }
+        pickerView.findViewById<android.widget.Button>(R.id.btn_minute_minus).setOnClickListener { adjust(Calendar.MINUTE, -1) }
+        pickerView.findViewById<android.widget.Button>(R.id.btn_minute_plus).setOnClickListener { adjust(Calendar.MINUTE, 1) }
+
+        refreshFields()
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.schedule_picker_title)
+            .setView(pickerView)
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.save, null)
+            .create()
+
+        dialog.setOnShowListener {
+            pickerView.findViewById<android.widget.Button>(R.id.btn_year_minus).requestFocus()
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val minimum = System.currentTimeMillis() + 60_000L
+                pendingScheduledAtMillis = max(calendar.timeInMillis, minimum)
+                updateScheduledUi()
+                dialog.dismiss()
+            }
+        }
+        dialog.show()
     }
 
     // ─── Data ───────────────────────────────────────────────────────────────
 
     private fun loadMessages() {
-        Log.d("DPAD_MSG", "ThreadActivity.loadMessages() called for threadId=$threadId")
+        if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.loadMessages() called for threadId=$threadId")
         lifecycleScope.launch {
             val messages = withContext(Dispatchers.IO) {
                 getMessagesForThread(threadId, App.get().contactHelper)
             }
-            Log.d("DPAD_MSG", "ThreadActivity.loadMessages() got ${messages.size} messages for threadId=$threadId")
+            if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.loadMessages() got ${messages.size} messages for threadId=$threadId")
             displayMessages(messages)
         }
     }
@@ -670,6 +827,7 @@ class ThreadActivity : BaseActivity() {
     private fun sendMessage() {
         var body       = binding.etMessage.text?.toString()?.trim() ?: ""
         val attachment = pendingAttachmentUri
+        val scheduledAtMillis = pendingScheduledAtMillis
         val attachments = LinkedHashSet<Uri>().apply {
             addAll(pendingAttachmentUris)
             if (attachment != null) add(attachment)
@@ -692,12 +850,14 @@ class ThreadActivity : BaseActivity() {
         if (body.isBlank() && attachments.isEmpty()) return
         if (phoneNumber.isBlank() && participants.isEmpty()) return
 
-        Log.d("DPAD_MSG", "ThreadActivity.sendMessage() body='${body.take(20)}' attachments=${attachments.size} participants=$participants isGroup=${participants.size > 1}")
+        if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.sendMessage() body='${body.take(20)}' attachments=${attachments.size} participants=$participants isGroup=${participants.size > 1}")
 
         binding.etMessage.text?.clear()
         binding.chipsContainer.removeAllViews()
         binding.chipsContainerScroll.visibility = View.GONE
         clearAttachment()
+        pendingScheduledAtMillis = null
+        updateScheduledUi()
         binding.etMessage.requestFocus()
 
         lifecycleScope.launch(Dispatchers.IO) {
@@ -710,48 +870,99 @@ class ThreadActivity : BaseActivity() {
             
             when (mode) {
                 SendingMode.MMS_GROUP -> {
-                    Log.d("DPAD_MSG", "ThreadActivity.sendMessage() routing: MMS_GROUP")
-                    MessageSenders.unified.sendMms(
-                        context        = this@ThreadActivity,
-                        recipients     = participants,
-                        body           = body,
-                        attachmentUri  = attachment,
-                        attachmentUris = attachments,
-                        threadId       = threadId,
-                        subscriptionId = selectedSubId
-                    )
+                    if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.sendMessage() routing: MMS_GROUP")
+                    if (scheduledAtMillis != null) {
+                        MessageSenders.scheduleMms(
+                            context = this@ThreadActivity,
+                            recipients = participants,
+                            body = body,
+                            attachmentUris = attachments,
+                            threadId = threadId,
+                            scheduledDate = scheduledAtMillis,
+                            subscriptionId = selectedSubId
+                        )
+                    } else {
+                        MessageSenders.unified.sendMms(
+                            context        = this@ThreadActivity,
+                            recipients     = participants,
+                            body           = body,
+                            attachmentUri  = attachment,
+                            attachmentUris = attachments,
+                            threadId       = threadId,
+                            subscriptionId = selectedSubId
+                        )
+                    }
                 }
                 SendingMode.MMS_SINGLE -> {
-                    Log.d("DPAD_MSG", "ThreadActivity.sendMessage() routing: MMS_SINGLE")
-                    MessageSenders.unified.sendMms(
-                        context        = this@ThreadActivity,
-                        recipients     = listOf(phoneNumber),
-                        body           = body,
-                        attachmentUri  = attachment,
-                        attachmentUris = attachments,
-                        threadId       = threadId,
-                        subscriptionId = selectedSubId
-                    )
+                    if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.sendMessage() routing: MMS_SINGLE")
+                    if (scheduledAtMillis != null) {
+                        MessageSenders.scheduleMms(
+                            context = this@ThreadActivity,
+                            recipients = listOf(phoneNumber),
+                            body = body,
+                            attachmentUris = attachments,
+                            threadId = threadId,
+                            scheduledDate = scheduledAtMillis,
+                            subscriptionId = selectedSubId
+                        )
+                    } else {
+                        MessageSenders.unified.sendMms(
+                            context        = this@ThreadActivity,
+                            recipients     = listOf(phoneNumber),
+                            body           = body,
+                            attachmentUri  = attachment,
+                            attachmentUris = attachments,
+                            threadId       = threadId,
+                            subscriptionId = selectedSubId
+                        )
+                    }
                 }
                 SendingMode.SMS_FANOUT_GROUP -> {
-                    Log.d("DPAD_MSG", "ThreadActivity.sendMessage() routing: SMS_FANOUT_GROUP to ${participants.size} recipients")
-                    MessageSenders.unified.sendGroupSmsFanout(
-                        context = this@ThreadActivity,
-                        recipients = participants,
-                        body = body,
-                        fallbackThreadId = threadId,
-                        subscriptionId = selectedSubId
-                    )
+                    if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.sendMessage() routing: SMS_FANOUT_GROUP to ${participants.size} recipients")
+                    if (scheduledAtMillis != null) {
+                        participants.forEach { recipient ->
+                            val recipientThreadId = runCatching {
+                                Telephony.Threads.getOrCreateThreadId(this@ThreadActivity, recipient)
+                            }.getOrDefault(threadId)
+                            MessageSenders.scheduleSms(
+                                context = this@ThreadActivity,
+                                phoneNumber = recipient,
+                                body = body,
+                                threadId = recipientThreadId,
+                                scheduledDate = scheduledAtMillis,
+                                subscriptionId = selectedSubId
+                            )
+                        }
+                    } else {
+                        MessageSenders.unified.sendGroupSmsFanout(
+                            context = this@ThreadActivity,
+                            recipients = participants,
+                            body = body,
+                            fallbackThreadId = threadId,
+                            subscriptionId = selectedSubId
+                        )
+                    }
                 }
                 SendingMode.SMS_SINGLE -> {
-                    Log.d("DPAD_MSG", "ThreadActivity.sendMessage() routing: SMS_SINGLE")
-                    MessageSenders.unified.sendSms(
-                        context        = this@ThreadActivity,
-                        phoneNumber    = phoneNumber,
-                        body           = body,
-                        threadId       = threadId,
-                        subscriptionId = selectedSubId
-                    )
+                    if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.sendMessage() routing: SMS_SINGLE")
+                    if (scheduledAtMillis != null) {
+                        MessageSenders.scheduleSms(
+                            context = this@ThreadActivity,
+                            phoneNumber = phoneNumber,
+                            body = body,
+                            threadId = threadId,
+                            scheduledDate = scheduledAtMillis,
+                            subscriptionId = selectedSubId
+                        )
+                    } else {
+                        MessageSenders.unified.sendSms(
+                            context        = this@ThreadActivity,
+                            phoneNumber    = phoneNumber,
+                            body           = body,
+                            threadId       = threadId,
+                            subscriptionId = selectedSubId
+                        )
+                    }
                 }
             }
             withContext(Dispatchers.Main) { loadMessages() }
@@ -872,7 +1083,7 @@ class ThreadActivity : BaseActivity() {
         if (subs.size < 2) {
             // Single-SIM — use that subscription's ID instead of -1
             selectedSubId = subs[0].subscriptionId
-            Log.d("DPAD_MSG", "ThreadActivity.loadSimInfo() single-SIM, selectedSubId=$selectedSubId")
+            if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.loadSimInfo() single-SIM, selectedSubId=$selectedSubId")
             return   // single-SIM: hide button
         }
 
@@ -887,14 +1098,14 @@ class ThreadActivity : BaseActivity() {
         selectedSubId = simEntries.first().first
         binding.btnSim.text = simEntries.first().second
         binding.btnSim.visibility = View.VISIBLE
-        Log.d("DPAD_MSG", "ThreadActivity.loadSimInfo() multi-SIM count=${subs.size}, selectedSubId=$selectedSubId")
+        if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.loadSimInfo() multi-SIM count=${subs.size}, selectedSubId=$selectedSubId")
     }
 
     private fun getDefaultSmsSubscriptionId(): Int {
         return try {
             SubscriptionManager.getDefaultSmsSubscriptionId()
         } catch (e: Exception) {
-            Log.w("DPAD_MSG", "Failed to get default SMS subscription ID", e)
+            if (BuildConfig.DEBUG) Log.w("DPAD_MSG", "Failed to get default SMS subscription ID", e)
             SubscriptionManager.INVALID_SUBSCRIPTION_ID
         }
     }
@@ -918,7 +1129,7 @@ class ThreadActivity : BaseActivity() {
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     fun onRefreshMessages(event: RefreshMessages) {
-        Log.d("DPAD_MSG", "ThreadActivity.onRefreshMessages() event.threadId=${event.threadId} local threadId=$threadId match=${event.threadId == threadId}")
+        if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.onRefreshMessages() event.threadId=${event.threadId} local threadId=$threadId match=${event.threadId == threadId}")
         if (event.threadId == threadId) loadMessages()
     }
 

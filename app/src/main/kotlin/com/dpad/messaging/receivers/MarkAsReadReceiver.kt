@@ -6,9 +6,8 @@ import android.content.Intent
 import com.dpad.messaging.App
 import com.dpad.messaging.events.RefreshConversations
 import com.dpad.messaging.extensions.markThreadAsReadInTelephony
+import com.dpad.messaging.helpers.AppCoroutineScopes
 import com.dpad.messaging.helpers.NotificationHelper
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 
@@ -31,7 +30,7 @@ class MarkAsReadReceiver : BroadcastReceiver() {
         if (threadId == -1L) return
 
         val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
+        AppCoroutineScopes.io.launch {
             try {
                 App.get().database.messagesDao().markThreadRead(threadId)
                 App.get().database.conversationsDao().markAsRead(threadId)

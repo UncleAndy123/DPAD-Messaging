@@ -57,7 +57,6 @@ class BottomSheetMenu(context: Context) : Dialog(context) {
     private fun buildMenuItems() {
         val accentColor = ThemeManager.accentColor(context)
         val textColor = ContextCompat.getColor(context, R.color.colorOnBackground)
-        val subColor = ContextCompat.getColor(context, R.color.conversationSnippet)
         val focusedTextColors = ColorStateList(
             arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
             intArrayOf(
@@ -71,7 +70,7 @@ class BottomSheetMenu(context: Context) : Dialog(context) {
         val paddingH = context.resources.getDimensionPixelSize(R.dimen.padding_medium)
         val paddingV = context.resources.getDimensionPixelSize(R.dimen.padding_small)
 
-        items.forEachIndexed { index, item ->
+        items.forEach { item ->
             val row = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 layoutParams = LinearLayout.LayoutParams(
@@ -104,7 +103,7 @@ class BottomSheetMenu(context: Context) : Dialog(context) {
             item.iconRes?.let { iconRes ->
                 val icon = ImageView(context).apply {
                     setImageResource(iconRes)
-                    setColorFilter(accentColor)
+                    imageTintList = accentTint
                     layoutParams = LinearLayout.LayoutParams(
                         context.resources.getDimensionPixelSize(R.dimen.toolbar_icon_size),
                         context.resources.getDimensionPixelSize(R.dimen.toolbar_icon_size)

@@ -28,3 +28,14 @@
 -dontnote kotlinx.serialization.AnnotationsKt
 -keepclassmembers class kotlinx.serialization.json.** { *** Companion; }
 -keepclasseswithmembers class kotlinx.serialization.json.** { kotlinx.serialization.KSerializer serializer(...); }
+
+# Keep generated serializers and serializable models
+-keep class kotlinx.serialization.** { *; }
+-keep @kotlinx.serialization.Serializable class * { *; }
+-keepclassmembers class **$$serializer { *; }
+
+# MMS transaction service + mmslib internals used reflectively
+-keep class com.android.mms.transaction.TransactionService { *; }
+-keep class com.klinker.android.send_message.** { *; }
+-keep class com.google.android.mms.** { *; }
+-keep class com.google.android.mms.pdu_alt.** { *; }

@@ -11,6 +11,7 @@
 -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:minHeight="@dimen/conversation_item_height"
@@ -143,8 +144,8 @@
         <!-- Pin indicator -->
         <ImageView
             android:id="@+id/iv_pinned"
-            android:layout_width="12dp"
-            android:layout_height="12dp"
+            android:layout_width="@dimen/conversation_indicator_size"
+            android:layout_height="@dimen/conversation_indicator_size"
             android:layout_marginStart="@dimen/padding_tiny"
             android:contentDescription="@null"
             android:focusable="false"
@@ -154,9 +155,9 @@
         <!-- Mute indicator -->
         <ImageView
             android:id="@+id/iv_muted"
-            android:layout_width="12dp"
-            android:layout_height="12dp"
-            android:layout_marginStart="2dp"
+            android:layout_width="@dimen/conversation_indicator_size"
+            android:layout_height="@dimen/conversation_indicator_size"
+            android:layout_marginStart="@dimen/conversation_indicator_margin_start"
             android:contentDescription="@null"
             android:focusable="false"
             android:src="@drawable/ic_mute"
@@ -166,8 +167,8 @@
 
     <ImageButton
         android:id="@+id/btn_conversation_menu"
-        android:layout_width="28dp"
-        android:layout_height="28dp"
+        android:layout_width="@dimen/conversation_menu_button_size"
+        android:layout_height="@dimen/conversation_menu_button_size"
         android:layout_marginStart="@dimen/padding_small"
         android:background="@drawable/button_focusable_bg"
         android:contentDescription="@string/conversation_options"

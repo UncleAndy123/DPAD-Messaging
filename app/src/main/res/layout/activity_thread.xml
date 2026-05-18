@@ -16,6 +16,7 @@
 -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/colorBackground"
@@ -117,9 +118,9 @@
         <!-- Thumbnail of the pending attachment -->
         <ImageView
             android:id="@+id/iv_attachment_preview"
-            android:layout_width="60dp"
-            android:layout_height="45dp"
-            android:contentDescription="@string/image_attached"
+            android:layout_width="@dimen/attachment_preview_width"
+            android:layout_height="@dimen/attachment_preview_height"
+            android:contentDescription="@string/image_attachment_preview"
             android:focusable="false"
             android:scaleType="centerCrop" />
 
@@ -226,6 +227,20 @@
             android:textSize="@dimen/text_size_small"
             android:visibility="gone" />
 
+        <ImageButton
+            android:id="@+id/btn_schedule"
+            android:layout_width="@dimen/compose_button_size"
+            android:layout_height="@dimen/compose_button_size"
+            android:layout_marginEnd="@dimen/padding_tiny"
+            android:background="@drawable/button_focusable_bg"
+            android:contentDescription="@string/schedule"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:src="@android:drawable/ic_menu_recent_history"
+            android:nextFocusLeft="@id/et_message"
+            android:nextFocusRight="@id/btn_send"
+            android:nextFocusUp="@id/btn_remove_attachment" />
+
         <!-- Send button -->
         <ImageButton
             android:id="@+id/btn_send"
@@ -238,7 +253,7 @@
             android:focusableInTouchMode="true"
             android:src="@drawable/ic_send"
             android:tint="@color/sendButtonDisabled"
-            android:nextFocusLeft="@id/et_message"
+            android:nextFocusLeft="@id/btn_schedule"
             android:nextFocusRight="@id/btn_sim"
             android:nextFocusUp="@id/btn_remove_attachment" />
 
@@ -264,5 +279,17 @@
             android:nextFocusUp="@id/btn_remove_attachment" />
 
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/tv_scheduled_time"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/composeBg"
+        android:paddingStart="@dimen/compose_padding"
+        android:paddingEnd="@dimen/compose_padding"
+        android:paddingBottom="@dimen/padding_tiny"
+        android:textColor="@color/conversationDate"
+        android:textSize="@dimen/text_size_small"
+        android:visibility="gone" />
 
 </LinearLayout>

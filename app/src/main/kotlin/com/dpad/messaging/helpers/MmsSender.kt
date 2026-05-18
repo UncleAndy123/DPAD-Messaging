@@ -8,6 +8,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import android.provider.Telephony
 import android.util.Log
+import com.dpad.messaging.BuildConfig
 import com.klinker.android.send_message.Message as KlinkerMessage
 import com.klinker.android.send_message.Settings as KlinkerSettings
 import com.klinker.android.send_message.Transaction as KlinkerTransaction
@@ -67,7 +68,8 @@ object MmsSender {
         attachmentUri: Uri?,
         attachmentUris: List<Uri> = emptyList(),
         threadId: Long,
-        subscriptionId: Int = -1
+        subscriptionId: Int = -1,
+        scheduledMessageId: Long? = null
     ) {
         if (recipients.isEmpty()) return
 
@@ -82,10 +84,12 @@ object MmsSender {
             if (attachmentUri != null) add(attachmentUri)
         }.toList()
 
-        Log.d(
-            TAG,
-            "MmsSender.send() recipients=$recipients filtered=$filteredRecipients body='${body.take(20)}' attachments=${mergedAttachments.size} threadId=$threadId"
-        )
+        if (BuildConfig.DEBUG) {
+            Log.d(
+                TAG,
+                "MmsSender.send() recipients=$recipients filtered=$filteredRecipients body='${body.take(20)}' attachments=${mergedAttachments.size} threadId=$threadId"
+            )
+        }
 
         if (mergedAttachments.isEmpty()) {
             sendSingleMms(
@@ -93,7 +97,8 @@ object MmsSender {
                 recipients = filteredRecipients,
                 body = body,
                 attachmentUri = null,
-                subscriptionId = subscriptionId
+                subscriptionId = subscriptionId,
+                scheduledMessageId = scheduledMessageId
             )
             return
         }
@@ -105,7 +110,8 @@ object MmsSender {
                 recipients = filteredRecipients,
                 body = if (isLast) body else "",
                 attachmentUri = uri,
-                subscriptionId = subscriptionId
+                subscriptionId = subscriptionId,
+                scheduledMessageId = scheduledMessageId
             )
         }
     }
@@ -115,7 +121,8 @@ object MmsSender {
         recipients: List<String>,
         body: String,
         attachmentUri: Uri?,
-        subscriptionId: Int
+        subscriptionId: Int,
+        scheduledMessageId: Long?
     ) {
         val message = KlinkerMessage(body, recipients.toTypedArray())
         if (recipients.size > 1) {
@@ -139,12 +146,12 @@ object MmsSender {
                     }
                     val attachmentName = resolveAttachmentName(context, attachmentUri, normalizedMime)
                     message.addMedia(bytes, normalizedMime, attachmentName)
-                    Log.d(TAG, "MmsSender: added attachment mime=$normalizedMime name=$attachmentName bytes=${bytes.size}")
+                    if (BuildConfig.DEBUG) Log.d(TAG, "MmsSender: added attachment mime=$normalizedMime name=$attachmentName bytes=${bytes.size}")
                 } catch (e: Exception) {
-                    Log.e(TAG, "MmsSender: failed to add attachment", e)
+                    if (BuildConfig.DEBUG) Log.e(TAG, "MmsSender: failed to add attachment", e)
                 }
             } else {
-                Log.w(TAG, "MmsSender: unable to read attachment data from uri=$attachmentUri")
+                if (BuildConfig.DEBUG) Log.w(TAG, "MmsSender: unable to read attachment data from uri=$attachmentUri")
             }
         }
 
@@ -168,16 +175,19 @@ object MmsSender {
             putExtra(EXTRA_THREAD_ID, resolvedThreadId)
             putExtra("extra_has_image", hasImage)
             putExtra("extra_library_sender", true)
+            if (scheduledMessageId != null) {
+                putExtra("extra_scheduled_message_id", scheduledMessageId)
+            }
         }
         transaction.setExplicitBroadcastForSentMms(sentIntent)
 
         // Send via mmslib
         try {
-            Log.d(TAG, "MmsSender: sending via mmslib recipients=$recipients group=${recipients.size > 1} subId=$subscriptionId")
+            if (BuildConfig.DEBUG) Log.d(TAG, "MmsSender: sending via mmslib recipients=$recipients group=${recipients.size > 1} subId=$subscriptionId")
             transaction.sendNewMessage(message)
-            Log.d(TAG, "MmsSender: sent successfully")
+            if (BuildConfig.DEBUG) Log.d(TAG, "MmsSender: sent successfully")
         } catch (e: Exception) {
-            Log.e(TAG, "MmsSender: send failed", e)
+            if (BuildConfig.DEBUG) Log.e(TAG, "MmsSender: send failed", e)
         }
     }
 
@@ -189,7 +199,7 @@ object MmsSender {
                 Telephony.Threads.getOrCreateThreadId(context, recipients.toSet())
             }
         } catch (e: Exception) {
-            Log.w(TAG, "MmsSender: resolveThreadId failed for $recipients", e)
+            if (BuildConfig.DEBUG) Log.w(TAG, "MmsSender: resolveThreadId failed for $recipients", e)
             -1L
         }
     }
@@ -200,7 +210,7 @@ object MmsSender {
                 input.readBytes()
             }
         } catch (e: Exception) {
-            Log.w(TAG, "MmsSender: readAttachment failed for $uri", e)
+            if (BuildConfig.DEBUG) Log.w(TAG, "MmsSender: readAttachment failed for $uri", e)
             null
         }
     }
@@ -234,9 +244,9 @@ object MmsSender {
 
     private fun compressImage(context: Context, uri: Uri): ByteArray? {
         return try {
-            val inputStream = context.contentResolver.openInputStream(uri) ?: return null
-            val original    = BitmapFactory.decodeStream(inputStream)
-            inputStream.close()
+            val original = context.contentResolver.openInputStream(uri)?.use { input ->
+                BitmapFactory.decodeStream(input)
+            }
             if (original == null) return null
 
             val scaled = if (original.width > MAX_IMAGE_WIDTH) {
@@ -255,7 +265,7 @@ object MmsSender {
             out.toByteArray()
         } catch (e: Exception) {
             // If bitmap decode fails (e.g., provider quirk), fall back to raw bytes.
-            Log.w(TAG, "MmsSender: compressImage failed, falling back to raw bytes", e)
+            if (BuildConfig.DEBUG) Log.w(TAG, "MmsSender: compressImage failed, falling back to raw bytes", e)
             readAttachment(context, uri)
         }
     }

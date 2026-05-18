@@ -6,11 +6,10 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import com.dpad.messaging.helpers.AppCoroutineScopes
 import com.dpad.messaging.helpers.MmsDownloader
 import com.google.android.mms.pdu_alt.NotificationInd
 import com.google.android.mms.pdu_alt.PduParser
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
@@ -82,7 +81,7 @@ class MmsReceiver : BroadcastReceiver() {
         // goAsync() extends the BroadcastReceiver deadline so the coroutine can
         // run the full MMS network request (~30 s) without ANR.
         val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
+        AppCoroutineScopes.io.launch {
             try {
                 MmsDownloader.download(context, contentLocation, subId, msgId)
             } finally {
@@ -158,14 +157,14 @@ class MmsReceiver : BroadcastReceiver() {
                 if (start < pdu.size && (pdu[start].toInt() and 0xFF) == 0x22) start++ // skip leading quote
 
                 if (start + 4 < pdu.size &&
-                    pdu[start].toChar().lowercaseChar()     == 'h' &&
-                    pdu[start + 1].toChar().lowercaseChar() == 't' &&
-                    pdu[start + 2].toChar().lowercaseChar() == 't' &&
-                    pdu[start + 3].toChar().lowercaseChar() == 'p'
+                    pdu[start].toInt().toChar().lowercaseChar()     == 'h' &&
+                    pdu[start + 1].toInt().toChar().lowercaseChar() == 't' &&
+                    pdu[start + 2].toInt().toChar().lowercaseChar() == 't' &&
+                    pdu[start + 3].toInt().toChar().lowercaseChar() == 'p'
                 ) {
                     val sb = StringBuilder()
                     var j = start
-                    while (j < pdu.size && pdu[j] != 0.toByte()) sb.append(pdu[j++].toChar())
+                    while (j < pdu.size && pdu[j] != 0.toByte()) sb.append(pdu[j++].toInt().toChar())
                     val url = sb.toString().trim()
                     if (url.isNotEmpty()) return url
                 }

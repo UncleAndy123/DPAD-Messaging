@@ -32,6 +32,8 @@ class Prefs private constructor(context: Context) {
         private const val KEY_DATE_FORMAT         = "date_format"
         private const val KEY_TIME_FORMAT         = "time_format"
         private const val KEY_UI_SCALE            = "ui_scale"
+        private const val KEY_MMS_PROXY_HOST      = "mms_proxy_host"
+        private const val KEY_MMS_PROXY_PORT      = "mms_proxy_port"
 
         const val PRIVACY_FULL        = "full"
         const val PRIVACY_SENDER_ONLY = "sender_only"
@@ -206,4 +208,12 @@ class Prefs private constructor(context: Context) {
         UI_SCALE_XLARGE  -> 1.5f
         else             -> 1.0f
     }
+
+    var mmsProxyHost: String
+        get() = prefs.getString(KEY_MMS_PROXY_HOST, "") ?: ""
+        set(v) = prefs.edit().putString(KEY_MMS_PROXY_HOST, v.trim()).apply()
+
+    var mmsProxyPort: Int
+        get() = prefs.getInt(KEY_MMS_PROXY_PORT, -1)
+        set(v) = prefs.edit().putInt(KEY_MMS_PROXY_PORT, v).apply()
 }

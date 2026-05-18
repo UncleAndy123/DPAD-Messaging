@@ -269,7 +269,7 @@ object MmsPduParser {
                 skipCharset()
                 val sb = StringBuilder()
                 while (pos < end && pos < pdu.size && pdu[pos] != 0.toByte()) {
-                    sb.append(pdu[pos++].toChar())
+                    sb.append(pdu[pos++].toInt().toChar())
                 }
                 pos = end     // always land at the right offset regardless of null
                 sb.toString()
@@ -278,7 +278,7 @@ object MmsPduParser {
                 if (first == 0x22) pos++ // skip optional leading quote
                 val sb = StringBuilder()
                 while (pos < pdu.size && pdu[pos] != 0.toByte()) {
-                    sb.append(pdu[pos++].toChar())
+                    sb.append(pdu[pos++].toInt().toChar())
                 }
                 if (pos < pdu.size) pos++ // consume null
                 sb.toString()
@@ -304,7 +304,7 @@ object MmsPduParser {
             skipCharset()   // optional charset prefix
             val sb = StringBuilder()
             while (pos < end && pos < pdu.size && pdu[pos] != 0.toByte()) {
-                val c = pdu[pos++].toChar()
+                val c = pdu[pos++].toInt().toChar()
                 if (c.code >= 32) sb.append(c)
             }
             pos = end
@@ -354,7 +354,7 @@ object MmsPduParser {
                 // Text MIME type (e.g. "text/plain\0")
                 else -> {
                     val sb = StringBuilder()
-                    while (pos < pdu.size && pdu[pos] != 0.toByte()) sb.append(pdu[pos++].toChar())
+                    while (pos < pdu.size && pdu[pos] != 0.toByte()) sb.append(pdu[pos++].toInt().toChar())
                     if (pos < pdu.size) pos++
                     sb.toString()
                 }
@@ -416,7 +416,7 @@ object MmsPduParser {
                 else -> {
                     val sb = StringBuilder()
                     while (pos < ctEnd && pos < pdu.size && pdu[pos] != 0.toByte()) {
-                        sb.append(pdu[pos++].toChar())
+                        sb.append(pdu[pos++].toInt().toChar())
                     }
                     if (pos < pdu.size && pdu[pos] == 0.toByte()) pos++
                     sb.toString()

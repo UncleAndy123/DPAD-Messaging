@@ -3,6 +3,10 @@ package com.dpad.messaging.receivers
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.dpad.messaging.App
+import com.dpad.messaging.helpers.AppCoroutineScopes
+import com.dpad.messaging.helpers.ScheduledMessageScheduler
+import kotlinx.coroutines.launch
 
 /**
  * Re-registers all pending scheduled-message alarms after boot,
@@ -10,10 +14,33 @@ import android.content.Intent
  * do not survive a device reboot.
  *
  * Phase 2: query Room for all scheduled messages with future dates
- * and call AlarmManager.setExactAndAllowWhileIdle() for each.
+ * and re-register alarms with exact/inexact fallback handling.
  */
 class RescheduleAlarmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        // Phase 2: reschedule all pending messages from Room
+        val pendingResult = goAsync()
+        AppCoroutineScopes.io.launch {
+            try {
+                reschedulePending(context)
+            } finally {
+                pendingResult.finish()
+            }
+        }
+    }
+
+    companion object {
+        suspend fun reschedulePending(context: Context) {
+            val now = System.currentTimeMillis()
+            val dao = App.get().database.messagesDao()
+            val pending = dao.getScheduledMessagesAfter(now)
+            pending.forEach { message ->
+                val triggerAt = message.scheduledDate ?: return@forEach
+                ScheduledMessageScheduler.scheduleAndPersistStatus(
+                    context = context,
+                    message = message,
+                    triggerAtMillis = triggerAt
+                )
+            }
+        }
     }
 }

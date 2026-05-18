@@ -7,6 +7,7 @@ import android.net.Uri
 import android.provider.Telephony
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
+import com.dpad.messaging.App
 import com.dpad.messaging.helpers.ContactHelper
 import com.dpad.messaging.helpers.MmsHelper
 import com.dpad.messaging.helpers.Prefs
@@ -166,7 +167,7 @@ private fun Context.resolveRecipientIds(recipientIds: String): List<String> {
  * Reads all SMS messages for a given thread from the Telephony provider,
  * sorted oldest-first (for display in a chat thread).
  */
-fun Context.getMessagesForThread(
+suspend fun Context.getMessagesForThread(
     threadId: Long,
     contactHelper: ContactHelper,
     limit: Int = 200
@@ -300,7 +301,16 @@ fun Context.getMessagesForThread(
         e.printStackTrace()
     }
 
-    // Sort all (SMS + MMS) by date ascending for chat display
+    // ── Locally queued scheduled messages (Room) ────────────────────────────
+    try {
+        val queued = App.get().database.messagesDao().getMessagesForThread(threadId)
+            .filter { it.isScheduled && it.type == Message.TYPE_QUEUED }
+        messages.addAll(queued)
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+
+    // Sort all (SMS + MMS + local queued) by date ascending for chat display
     return messages.sortedBy { it.date }
 }
 

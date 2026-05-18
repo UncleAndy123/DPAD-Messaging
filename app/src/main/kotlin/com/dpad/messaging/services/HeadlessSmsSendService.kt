@@ -4,9 +4,9 @@ import android.app.Service
 import android.content.Intent
 import android.net.Uri
 import android.os.IBinder
+import android.provider.Telephony
+import com.dpad.messaging.helpers.AppCoroutineScopes
 import com.dpad.messaging.helpers.MessageSenders
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
@@ -23,7 +23,7 @@ class HeadlessSmsSendService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent != null) {
-            CoroutineScope(Dispatchers.IO).launch {
+            AppCoroutineScopes.io.launch {
                 try {
                     handleRespondViaMessage(intent)
                 } finally {
@@ -60,15 +60,16 @@ class HeadlessSmsSendService : Service() {
     }
 
     private fun resolveThreadId(address: String): Long? {
-        return try {
+        return runCatching {
+            Telephony.Threads.getOrCreateThreadId(this, address)
+        }.recoverCatching {
             val uri = android.net.Uri.withAppendedPath(
                 android.net.Uri.parse("content://mms-sms/threadID"),
                 android.net.Uri.encode(address)
             )
             contentResolver.query(uri, arrayOf("_id"), null, null, null)
                 ?.use { cursor -> if (cursor.moveToFirst()) cursor.getLong(0) else null }
-        } catch (e: Exception) {
-            null
-        }
+                ?: throw IllegalStateException("No thread id")
+        }.getOrNull()
     }
 }

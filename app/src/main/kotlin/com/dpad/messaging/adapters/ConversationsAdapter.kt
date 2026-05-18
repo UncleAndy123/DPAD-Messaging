@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.bumptech.glide.request.target.Target
 import com.dpad.messaging.R
 import com.dpad.messaging.databinding.ItemConversationBinding
 import com.dpad.messaging.helpers.Prefs
@@ -107,6 +108,7 @@ class ConversationsAdapter(
                 binding.tvAvatarLetter.visibility = View.GONE
                 Glide.with(binding.ivAvatar.context)
                     .load(Uri.parse(conversation.photoUri))
+                    .override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
                     .circleCrop()
                     .placeholder(R.drawable.ic_person)
                     .into(binding.ivAvatar)

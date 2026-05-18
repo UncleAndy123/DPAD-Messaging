@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.dpad.messaging.R
 import com.dpad.messaging.databinding.ItemConversationBinding
+import com.dpad.messaging.helpers.Prefs
 import com.dpad.messaging.helpers.ThemeManager
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -100,13 +101,20 @@ class RecycleBinAdapter(
             if (timestamp == 0L) return ""
             val now = Calendar.getInstance()
             val msg = Calendar.getInstance().apply { timeInMillis = timestamp }
+            val prefs = Prefs.get()
             return when {
                 isSameDay(now, msg) ->
-                    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
+                    SimpleDateFormat(
+                        if (prefs.timeFormat == Prefs.TIME_FORMAT_24H) "HH:mm" else "h:mm a",
+                        Locale.getDefault()
+                    ).format(Date(timestamp))
                 diffDays(now, msg) < 7 ->
                     SimpleDateFormat("EEE", Locale.getDefault()).format(Date(timestamp))
                 else ->
-                    SimpleDateFormat("dd/MM/yy", Locale.getDefault()).format(Date(timestamp))
+                    SimpleDateFormat(
+                        if (prefs.dateFormat == Prefs.DATE_FORMAT_DMY) "dd/MM/yy" else "MM/dd/yy",
+                        Locale.getDefault()
+                    ).format(Date(timestamp))
             }
         }
 

@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
-        <include domain="sharedpref" path="." />
-        <include domain="database" path="." />
+        <!-- Back up everything except the Room database -->
         <exclude domain="database" path="dpad_messages.db" />
+        <exclude domain="database" path="dpad_messages.db-wal" />
+        <exclude domain="database" path="dpad_messages.db-shm" />
     </cloud-backup>
     <device-transfer>
-        <include domain="sharedpref" path="." />
-        <include domain="database" path="dpad_messages.db" />
+        <exclude domain="database" path="dpad_messages.db" />
+        <exclude domain="database" path="dpad_messages.db-wal" />
+        <exclude domain="database" path="dpad_messages.db-shm" />
     </device-transfer>
 </data-extraction-rules>

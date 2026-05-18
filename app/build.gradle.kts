@@ -5,6 +5,13 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization") version "1.9.22"
 }
 
+fun getSecret(name: String): String? {
+    val prop = providers.gradleProperty(name).orNull
+    if (!prop.isNullOrBlank()) return prop
+    val env = System.getenv(name)
+    return if (env.isNullOrBlank()) null else env
+}
+
 android {
     namespace = "com.dpad.messaging"
     compileSdk = 34
@@ -19,18 +26,39 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    ksp {
+        arg("room.schemaLocation", "$projectDir/schemas")
+        arg("room.incremental", "true")
+        arg("room.expandProjection", "true")
+    }
+
+    val releaseStoreFile = getSecret("RELEASE_STORE_FILE")
+    val releaseStorePassword = getSecret("RELEASE_STORE_PASSWORD")
+    val releaseKeyAlias = getSecret("RELEASE_KEY_ALIAS")
+    val releaseKeyPassword = getSecret("RELEASE_KEY_PASSWORD")
+    val hasReleaseSigning = listOf(
+        releaseStoreFile,
+        releaseStorePassword,
+        releaseKeyAlias,
+        releaseKeyPassword
+    ).all { !it.isNullOrBlank() }
+
     signingConfigs {
-        create("release") {
-            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(requireNotNull(releaseStoreFile))
+                storePassword = requireNotNull(releaseStorePassword)
+                keyAlias = requireNotNull(releaseKeyAlias)
+                keyPassword = requireNotNull(releaseKeyPassword)
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -38,7 +66,6 @@ android {
             )
         }
         debug {
-            applicationIdSuffix = ".debug"
             isDebuggable = true
         }
     }
@@ -57,9 +84,22 @@ android {
         buildConfig = true
     }
 
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
+    lint {
+        baseline = file("lint-baseline.xml")
+        abortOnError = true
+        checkReleaseBuilds = true
+    }
+
     sourceSets {
         getByName("main") {
             java.srcDirs("src/main/kotlin")
+        }
+        getByName("androidTest") {
+            assets.srcDir("$projectDir/schemas")
         }
     }
 }
@@ -86,7 +126,7 @@ dependencies {
 
     // Glide (contact photos + MMS images)
     implementation("com.github.bumptech.glide:glide:4.16.0")
-    ksp("com.github.bumptech.glide:ksp:4.14.2")
+    ksp("com.github.bumptech.glide:ksp:4.16.0")
 
     // JSON serialization (export/import - Phase 4)
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
@@ -99,6 +139,28 @@ dependencies {
 
     // Test
     testImplementation("junit:junit:4.13.2")
+    testImplementation("androidx.test:core:1.5.0")
+    testImplementation("org.robolectric:robolectric:4.11.1")
+    androidTestImplementation("androidx.test:core:1.5.0")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    androidTestImplementation("androidx.room:room-testing:2.6.1")
+}
+
+val isReleaseTaskRequested = gradle.startParameter.taskNames.any {
+    it.contains("Release", ignoreCase = true)
+}
+if (isReleaseTaskRequested) {
+    val missing = listOf(
+        "RELEASE_STORE_FILE" to getSecret("RELEASE_STORE_FILE"),
+        "RELEASE_STORE_PASSWORD" to getSecret("RELEASE_STORE_PASSWORD"),
+        "RELEASE_KEY_ALIAS" to getSecret("RELEASE_KEY_ALIAS"),
+        "RELEASE_KEY_PASSWORD" to getSecret("RELEASE_KEY_PASSWORD")
+    ).filter { it.second.isNullOrBlank() }.map { it.first }
+    if (missing.isNotEmpty()) {
+        throw GradleException(
+            "Missing release signing secrets: ${missing.joinToString(", ")}. " +
+                "Provide them via Gradle properties or environment variables."
+        )
+    }
 }

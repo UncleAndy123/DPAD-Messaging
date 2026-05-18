@@ -9,11 +9,11 @@ import android.provider.Telephony
 import android.telephony.SmsMessage
 import android.util.Log
 import com.dpad.messaging.App
+import com.dpad.messaging.BuildConfig
 import com.dpad.messaging.events.RefreshConversations
 import com.dpad.messaging.events.RefreshMessages
+import com.dpad.messaging.helpers.AppCoroutineScopes
 import com.dpad.messaging.helpers.NotificationHelper
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 
@@ -58,7 +58,7 @@ class SmsReceiver : BroadcastReceiver() {
 
         // ── Hand off to IO coroutine; keep the receiver alive via PendingResult ─
         val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
+        AppCoroutineScopes.io.launch {
             try {
                 processMessage(context, address, body, timestamp)
             } finally {
@@ -73,7 +73,7 @@ class SmsReceiver : BroadcastReceiver() {
         body: String,
         timestamp: Long
     ) {
-        Log.d("DPAD_MSG", "SmsReceiver.processMessage() address=$address body='${body.take(40)}'")
+        if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "SmsReceiver.processMessage() address=$address body='${body.take(40)}'")
 
         // Resolve (or create) the thread ID for this sender address.
         // resolveThreadId scans existing threads. If it returns null (new contact / short code)
@@ -81,30 +81,30 @@ class SmsReceiver : BroadcastReceiver() {
         val threadId: Long = resolveThreadId(context, address)
             ?: try {
                 val newId = Telephony.Threads.getOrCreateThreadId(context, address)
-                Log.d("DPAD_MSG", "SmsReceiver: getOrCreateThreadId for '$address' -> $newId")
+                if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "SmsReceiver: getOrCreateThreadId for '$address' -> $newId")
                 newId
             } catch (e: Exception) {
-                Log.e("DPAD_MSG", "SmsReceiver: getOrCreateThreadId failed for '$address'", e)
+                if (BuildConfig.DEBUG) Log.e("DPAD_MSG", "SmsReceiver: getOrCreateThreadId failed for '$address'", e)
                 return
             }
-        Log.d("DPAD_MSG", "SmsReceiver.resolveThreadId() -> threadId=$threadId")
+        if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "SmsReceiver.resolveThreadId() -> threadId=$threadId")
 
         // Insert into Telephony Sms CP so every SMS reader app can see it.
         val cv = ContentValues().apply {
-            put("address", address)
-            put("body", body)
-            put("date", timestamp)
-            put("date_sent", timestamp)
-            put("type", Telephony.Sms.MESSAGE_TYPE_INBOX)
-            put("thread_id", threadId)
-            put("read", 0)
-            put("seen", 0)
+            put(Telephony.Sms.ADDRESS, address)
+            put(Telephony.Sms.BODY, body)
+            put(Telephony.Sms.DATE, timestamp)
+            put(Telephony.Sms.DATE_SENT, timestamp)
+            put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_INBOX)
+            put(Telephony.Sms.THREAD_ID, threadId)
+            put(Telephony.Sms.READ, 0)
+            put(Telephony.Sms.SEEN, 0)
         }
         try {
             val insertedUri = context.contentResolver.insert(Telephony.Sms.CONTENT_URI, cv)
-            Log.d("DPAD_MSG", "SmsReceiver: inserted SMS row -> $insertedUri")
+            if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "SmsReceiver: inserted SMS row -> $insertedUri")
         } catch (e: Exception) {
-            Log.e("DPAD_MSG", "SmsReceiver: insert failed", e)
+            if (BuildConfig.DEBUG) Log.e("DPAD_MSG", "SmsReceiver: insert failed", e)
             e.printStackTrace()
         }
 
@@ -120,7 +120,7 @@ class SmsReceiver : BroadcastReceiver() {
         }
 
         // Refresh UI regardless of keyword blocking (message is still stored).
-        Log.d("DPAD_MSG", "SmsReceiver: posting EventBus RefreshMessages(threadId=$threadId)")
+        if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "SmsReceiver: posting EventBus RefreshMessages(threadId=$threadId)")
         EventBus.getDefault().post(RefreshConversations())
         EventBus.getDefault().post(RefreshMessages(threadId))
     }
@@ -141,7 +141,7 @@ class SmsReceiver : BroadcastReceiver() {
         // First, try the fast threadID URI for each candidate.
         for (cand in candidates) {
             try {
-                Log.d("DPAD_MSG", "SmsReceiver.resolveThreadId(): querying threadID for candidate='$cand'")
+                if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "SmsReceiver.resolveThreadId(): querying threadID for candidate='$cand'")
                 val uri = Uri.withAppendedPath(
                     Uri.parse("content://mms-sms/threadID"),
                     Uri.encode(cand)
@@ -157,7 +157,7 @@ class SmsReceiver : BroadcastReceiver() {
         // their stored addresses against our normalized candidates. This is more
         // expensive but reliable across ROMs that don't support the threadID URI.
         try {
-            Log.d("DPAD_MSG", "SmsReceiver.resolveThreadId(): fallback scanning conversations for address=$address")
+            if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "SmsReceiver.resolveThreadId(): fallback scanning conversations for address=$address")
             val convUri = Uri.parse("content://mms-sms/conversations?simple=true")
             val proj = arrayOf(Telephony.Threads._ID, Telephony.Threads.RECIPIENT_IDS)
             val normalizedCandidates = candidates.map { it.filter { ch -> ch.isDigit() } }.toSet()
@@ -179,7 +179,7 @@ class SmsReceiver : BroadcastReceiver() {
                                     if (!storedAddr.isNullOrBlank()) {
                                         val storedDigits = storedAddr.filter { ch -> ch.isDigit() }
                                         if (storedDigits in normalizedCandidates) {
-                                            Log.d("DPAD_MSG", "SmsReceiver.resolveThreadId(): matched threadId=$threadId via canonical-address id=$cid addr=$storedAddr")
+                                            if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "SmsReceiver.resolveThreadId(): matched threadId=$threadId via canonical-address id=$cid addr=$storedAddr")
                                             return threadId
                                         }
                                     }

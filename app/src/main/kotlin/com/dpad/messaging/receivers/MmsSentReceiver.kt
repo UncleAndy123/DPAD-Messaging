@@ -8,9 +8,13 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.util.Log
+import com.dpad.messaging.App
+import com.dpad.messaging.models.Message
 import com.dpad.messaging.events.RefreshConversations
 import com.dpad.messaging.events.RefreshMessages
+import com.dpad.messaging.helpers.AppCoroutineScopes
 import com.dpad.messaging.helpers.MmsSender
+import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import java.io.File
 
@@ -30,6 +34,7 @@ class MmsSentReceiver : BroadcastReceiver() {
         private const val EXTRA_FILE_PATH = "file_path"
         private const val EXTRA_ORIGINAL_RESEND_ID = "original_resent_message_id"
         private const val EXTRA_ORIGINAL_MESSAGE_ID = "original_message_id"
+        private const val EXTRA_SCHEDULED_MESSAGE_ID = "extra_scheduled_message_id"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -37,6 +42,7 @@ class MmsSentReceiver : BroadcastReceiver() {
         val hasImage = intent.getBooleanExtra("extra_has_image", false)
         val isSuccess = resultCode == Activity.RESULT_OK
         val targetMsgBox = if (isSuccess) 2 else 5 // 2=sent, 5=failed
+        val scheduledMessageId = intent.getLongExtra(EXTRA_SCHEDULED_MESSAGE_ID, -1L)
 
         val contentUri = extractContentUri(intent)
         if (contentUri != null) {
@@ -60,6 +66,28 @@ class MmsSentReceiver : BroadcastReceiver() {
         if (threadId > 0) {
             EventBus.getDefault().post(RefreshMessages(threadId))
             Log.d("DPAD_MSG", "MmsSentReceiver: posted refresh events for threadId=$threadId")
+        }
+
+        if (scheduledMessageId > 0L) {
+            AppCoroutineScopes.io.launch {
+                val dao = App.get().database.messagesDao()
+                val scheduled = dao.getMessage(scheduledMessageId) ?: return@launch
+                if (isSuccess) {
+                    dao.deleteMessage(scheduledMessageId)
+                } else {
+                    dao.updateMessage(
+                        scheduled.copy(
+                            type = Message.TYPE_FAILED,
+                            status = Message.STATUS_FAILED,
+                            isScheduled = false,
+                            scheduledDate = null,
+                            dateSent = System.currentTimeMillis()
+                        )
+                    )
+                }
+                EventBus.getDefault().post(RefreshConversations())
+                if (threadId > 0) EventBus.getDefault().post(RefreshMessages(threadId))
+            }
         }
     }
 

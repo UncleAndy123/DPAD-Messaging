@@ -336,7 +336,7 @@ class NewConversationActivity : BaseActivity() {
             val label = App.get().contactHelper.getDisplayName(recipient)
             val chip = TextView(this).apply {
                 id = View.generateViewId()
-                text = "$label  ×"
+                text = getString(R.string.recipient_chip_remove, label)
                 contentDescription = getString(R.string.remove_recipient)
                 applyRecipientChipStyle(this)
                 setTextSize(TypedValue.COMPLEX_UNIT_PX, resources.getDimension(R.dimen.recipient_chip_text_size))

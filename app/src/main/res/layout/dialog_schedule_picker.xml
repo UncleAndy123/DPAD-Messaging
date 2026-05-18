@@ -27,7 +27,7 @@
             android:id="@+id/btn_year_minus"
             android:layout_width="@dimen/schedule_picker_stepper_size"
             android:layout_height="@dimen/schedule_picker_stepper_size"
-            android:text="-" />
+            android:text="@string/schedule_step_decrement" />
 
         <TextView
             android:id="@+id/tv_year"
@@ -41,7 +41,7 @@
             android:id="@+id/btn_year_plus"
             android:layout_width="@dimen/schedule_picker_stepper_size"
             android:layout_height="@dimen/schedule_picker_stepper_size"
-            android:text="+" />
+            android:text="@string/schedule_step_increment" />
     </LinearLayout>
 
     <LinearLayout
@@ -59,7 +59,7 @@
             android:id="@+id/btn_month_minus"
             android:layout_width="@dimen/schedule_picker_stepper_size"
             android:layout_height="@dimen/schedule_picker_stepper_size"
-            android:text="-" />
+            android:text="@string/schedule_step_decrement" />
 
         <TextView
             android:id="@+id/tv_month"
@@ -73,7 +73,7 @@
             android:id="@+id/btn_month_plus"
             android:layout_width="@dimen/schedule_picker_stepper_size"
             android:layout_height="@dimen/schedule_picker_stepper_size"
-            android:text="+" />
+            android:text="@string/schedule_step_increment" />
     </LinearLayout>
 
     <LinearLayout
@@ -91,7 +91,7 @@
             android:id="@+id/btn_day_minus"
             android:layout_width="@dimen/schedule_picker_stepper_size"
             android:layout_height="@dimen/schedule_picker_stepper_size"
-            android:text="-" />
+            android:text="@string/schedule_step_decrement" />
 
         <TextView
             android:id="@+id/tv_day"
@@ -105,7 +105,7 @@
             android:id="@+id/btn_day_plus"
             android:layout_width="@dimen/schedule_picker_stepper_size"
             android:layout_height="@dimen/schedule_picker_stepper_size"
-            android:text="+" />
+            android:text="@string/schedule_step_increment" />
     </LinearLayout>
 
     <LinearLayout
@@ -123,7 +123,7 @@
             android:id="@+id/btn_hour_minus"
             android:layout_width="@dimen/schedule_picker_stepper_size"
             android:layout_height="@dimen/schedule_picker_stepper_size"
-            android:text="-" />
+            android:text="@string/schedule_step_decrement" />
 
         <TextView
             android:id="@+id/tv_hour"
@@ -137,7 +137,7 @@
             android:id="@+id/btn_hour_plus"
             android:layout_width="@dimen/schedule_picker_stepper_size"
             android:layout_height="@dimen/schedule_picker_stepper_size"
-            android:text="+" />
+            android:text="@string/schedule_step_increment" />
     </LinearLayout>
 
     <LinearLayout
@@ -155,7 +155,7 @@
             android:id="@+id/btn_minute_minus"
             android:layout_width="@dimen/schedule_picker_stepper_size"
             android:layout_height="@dimen/schedule_picker_stepper_size"
-            android:text="-" />
+            android:text="@string/schedule_step_decrement" />
 
         <TextView
             android:id="@+id/tv_minute"
@@ -169,7 +169,7 @@
             android:id="@+id/btn_minute_plus"
             android:layout_width="@dimen/schedule_picker_stepper_size"
             android:layout_height="@dimen/schedule_picker_stepper_size"
-            android:text="+" />
+            android:text="@string/schedule_step_increment" />
     </LinearLayout>
 
     <TextView

@@ -99,9 +99,6 @@ class MainActivity : BaseActivity() {
     }
 
     private fun refreshConversationList() {
-        if (::conversationsAdapter.isInitialized) {
-            conversationsAdapter.notifyDataSetChanged()
-        }
         loadConversations()
     }
 

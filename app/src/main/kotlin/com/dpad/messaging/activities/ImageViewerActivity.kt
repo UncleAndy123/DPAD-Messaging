@@ -188,7 +188,7 @@ class ImageViewerActivity : BaseActivity() {
         matrixValues.postTranslate(translateX, translateY)
         imageView.imageMatrix = matrixValues
 
-        zoomLabel.text = "${(scaleFactor * 100).roundToInt()}%"
+        zoomLabel.text = getString(R.string.image_viewer_zoom_percent, (scaleFactor * 100).roundToInt())
     }
 
     companion object {

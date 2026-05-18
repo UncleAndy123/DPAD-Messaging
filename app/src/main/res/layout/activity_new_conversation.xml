@@ -10,6 +10,7 @@
 -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -38,7 +39,7 @@
             android:nextFocusDown="@id/et_recipient"
             android:scaleType="center"
             android:src="@drawable/ic_back"
-            android:tint="@color/toolbarIcon" />
+            app:tint="@color/toolbarIcon" />
 
         <TextView
             android:layout_width="0dp"
@@ -118,7 +119,7 @@
                 android:gravity="center"
                 android:nextFocusUp="@id/btn_back"
                 android:nextFocusDown="@id/btn_send"
-                android:text="+"
+                android:text="@string/schedule_step_increment"
                 android:textColor="@color/colorOnBackground"
                 android:textSize="@dimen/text_size_title"
                 android:textStyle="bold" />
@@ -190,7 +191,7 @@
             android:nextFocusUp="@id/et_recipient"
             android:scaleType="center"
             android:src="@drawable/ic_send"
-            android:tint="@color/sendButtonDisabled" />
+            app:tint="@color/sendButtonDisabled" />
 
     </LinearLayout>
 

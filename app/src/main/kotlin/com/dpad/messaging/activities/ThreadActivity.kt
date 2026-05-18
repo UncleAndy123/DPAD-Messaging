@@ -541,7 +541,7 @@ class ThreadActivity : BaseActivity() {
 
         // Restore the number to the input
         val currentText = binding.etMessage.text?.toString() ?: ""
-        binding.etMessage.setText("$currentText $number".trim())
+        binding.etMessage.setText(getString(R.string.compose_restore_number, currentText, number).trim())
         binding.etMessage.setSelection(binding.etMessage.text?.length ?: 0)
         updateSendButtonState()
     }
@@ -576,7 +576,7 @@ class ThreadActivity : BaseActivity() {
             @Suppress("DEPRECATION")
             val result = android.telephony.SmsMessage.calculateLength(text, false)
             // result[0] = segments, result[2] = remaining chars in last segment
-            binding.tvCharCount.text = "${result[2]}/${result[0]}"
+            binding.tvCharCount.text = getString(R.string.sms_char_counter_format, result[2], result[0])
             binding.tvCharCount.visibility = View.VISIBLE
         } else {
             binding.tvCharCount.visibility = View.GONE

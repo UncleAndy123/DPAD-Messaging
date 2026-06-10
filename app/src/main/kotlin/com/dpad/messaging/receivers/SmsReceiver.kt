@@ -12,6 +12,7 @@ import com.dpad.messaging.App
 import com.dpad.messaging.BuildConfig
 import com.dpad.messaging.events.RefreshConversations
 import com.dpad.messaging.events.RefreshMessages
+import com.dpad.messaging.helpers.SmsWhitelistManager
 import com.dpad.messaging.helpers.AppCoroutineScopes
 import com.dpad.messaging.helpers.NotificationHelper
 import kotlinx.coroutines.launch
@@ -35,6 +36,8 @@ class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         // ── Parse PDUs synchronously before onReceive() returns ───────────────
         val bundle = intent.extras ?: return
+
+
 
         // Bundle.get("pdus") historically returned an Array of ByteArray. On newer
         // API levels the type can vary, so normalize safely to a List<ByteArray>.
@@ -107,7 +110,13 @@ class SmsReceiver : BroadcastReceiver() {
             if (BuildConfig.DEBUG) Log.e("DPAD_MSG", "SmsReceiver: insert failed", e)
             e.printStackTrace()
         }
-
+        // At the top of onReceive(), before the ContentValues insert:
+        //This will actually drop an incoming message, instead of just hiding it.
+        val filterResult = SmsWhitelistManager.check(context, address)
+        if (!filterResult.allowed) {
+            Log.i("DPAD_MSG", "SmsReceiver: dropped message from $address — ${filterResult.reason}")
+            return  // drop silently — don't insert, don't notify
+        }
         // Check blocked keywords — suppress notification if the body OR sender address matches any.
         val keywords = App.get().database.blockedKeywordsDao().getAll()
         val isBlocked = keywords.any { kw ->

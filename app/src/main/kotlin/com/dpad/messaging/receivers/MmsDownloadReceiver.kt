@@ -18,6 +18,7 @@ import com.dpad.messaging.events.RefreshMessages
 import com.dpad.messaging.helpers.AppCoroutineScopes
 import com.dpad.messaging.helpers.MmsHelper
 import com.dpad.messaging.helpers.NotificationHelper
+import com.dpad.messaging.helpers.SmsWhitelistManager
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 
@@ -237,6 +238,15 @@ class MmsDownloadReceiver : BroadcastReceiver() {
                 } catch (e: Exception) {
                     w({ "MmsDownloadReceiver: could not correct thread_id" }, e)
                 }
+            }
+
+            // Replace the existing keyword-check block with a whitelist check added.
+            val filterResult = SmsWhitelistManager.check(context, address)
+            if (!filterResult.allowed) {
+                Log.i("DPAD_MSG", "MmsDownloadReceiver: dropped MMS from $address — ${filterResult.reason}")
+                // optionally delete the placeholder row
+                runCatching { context.contentResolver.delete(Uri.withAppendedPath(mmsUri, msgId.toString()), null, null) }
+                return
             }
 
             val keywords = App.get().database.blockedKeywordsDao().getAll()

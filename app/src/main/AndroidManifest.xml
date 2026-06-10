@@ -52,6 +52,8 @@
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
+    <!-- Permissions for Receive app restrictions. -->
+    <uses-permission android:name="android.permission.RECEIVE_APP_RESTRICTIONS" />
 
     <application
         android:name=".App"

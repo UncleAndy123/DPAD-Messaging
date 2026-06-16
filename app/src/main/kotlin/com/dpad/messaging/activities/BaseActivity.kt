@@ -15,6 +15,8 @@ import com.dpad.messaging.helpers.ThemeManager
  */
 abstract class BaseActivity : AppCompatActivity() {
 
+    private var appliedScale: Float = 1.0f
+
     override fun onCreate(savedInstanceState: Bundle?) {
         try {
             setTheme(ThemeManager.activityThemeRes())
@@ -24,9 +26,18 @@ abstract class BaseActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
     }
 
+    override fun onResume() {
+        super.onResume()
+        val currentScale = try { Prefs.get().uiScaleFactor } catch (_: Exception) { 1.0f }
+        if (currentScale != appliedScale) {
+            recreate()
+        }
+    }
+
     override fun attachBaseContext(newBase: Context) {
         // Guard: Prefs may not yet be initialised during very early startup (SplashActivity).
         val scale = try { Prefs.get().uiScaleFactor } catch (_: Exception) { 1.0f }
+        appliedScale = scale
         if (scale == 1.0f) {
             super.attachBaseContext(newBase)
             return

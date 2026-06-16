@@ -105,7 +105,7 @@ class Prefs private constructor(context: Context) {
      * Default: [PRIVACY_FULL].
      */
     var lockScreenPrivacy: String
-        get() = prefs.getString(KEY_LOCK_SCREEN_PRIVACY, PRIVACY_FULL) ?: PRIVACY_FULL
+        get() = prefs.getString(KEY_LOCK_SCREEN_PRIVACY, PRIVACY_SENDER_ONLY) ?: PRIVACY_SENDER_ONLY
         set(v) = prefs.edit().putString(KEY_LOCK_SCREEN_PRIVACY, v).apply()
 
     /** Move deleted messages to the recycle bin instead of hard-deleting. Default: false. */

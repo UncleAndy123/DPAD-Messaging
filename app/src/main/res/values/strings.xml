@@ -146,6 +146,9 @@
     <string name="show_sender_only">Show sender only</string>
     <string name="manage_blocked_keywords">Blocked Keywords</string>
     <string name="blocked_keywords_summary">Block notifications from messages containing keywords</string>
+    <string name="manage_blocked_numbers">Blocked Numbers</string>
+    <string name="blocked_numbers_summary">Block messages from these numbers</string>
+    <string name="blocked_numbers">Blocked Numbers</string>
     <string name="recycle_bin_enabled">Use Recycle Bin</string>
     <string name="recycle_bin_enabled_summary">Move deleted messages to recycle bin instead of deleting immediately</string>
     <string name="about">About</string>
@@ -158,6 +161,10 @@
     <string name="enter_keyword">Enter keyword…</string>
     <string name="no_blocked_keywords">No blocked keywords.</string>
     <string name="delete_keyword_confirm">Delete this keyword?</string>
+    <string name="add_number">Add Number</string>
+    <string name="enter_number">Enter number…</string>
+    <string name="no_blocked_numbers">No blocked numbers.</string>
+    <string name="delete_number_confirm">Delete this number?</string>
 
     <!-- ─── Empty States ─── -->
     <string name="no_archived">No archived conversations.</string>

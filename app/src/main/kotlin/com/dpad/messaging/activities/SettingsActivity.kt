@@ -232,6 +232,14 @@ class SettingsActivity : BaseActivity() {
                 startActivity(Intent(this, BlockedKeywordsActivity::class.java))
             }
         )
+        navRow(
+            container = c,
+            label     = getString(R.string.manage_blocked_numbers),
+            summary   = getString(R.string.blocked_numbers_summary),
+            onClick   = {
+                startActivity(Intent(this, BlockedNumbersActivity::class.java))
+            }
+        )
 
         // ── Storage ──────────────────────────────────────────────────────────
         sectionHeader(c, getString(R.string.storage))

@@ -32,6 +32,8 @@ class App : Application() {
         AppCoroutineScopes.io.launch {
             RescheduleAlarmsReceiver.reschedulePending(this@App)
             ScheduledMessageIntegrityChecker.run(this@App)
+            // Ensure legacy numeric keywords are migrated to blocked_numbers table.
+            BlockedListsMigration.migrate()
         }
     }
 

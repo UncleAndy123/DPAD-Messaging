@@ -36,9 +36,6 @@ Builds:
       - "mmslib|https://github.com/FossifyOrg/mmslib.git|v1.0.0"
     prebuild:
       - cp -r $$mmslib$$/library vendor/mmslib
-      - echo 'include(":vendor:mmslib")' >> settings.gradle.kts
-      - echo 'project(":vendor:mmslib").projectDir = file("vendor/mmslib")' >> settings.gradle.kts
-      - sed -i 's|implementation("org.fossify:mmslib:1.0.0")|implementation(project(":vendor:mmslib"))|' app/build.gradle.kts
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags

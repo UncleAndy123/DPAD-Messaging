@@ -103,6 +103,19 @@ object MmsDownloader {
                 ?: throw Exception("MmsPduParser returned null — malformed PDU?")
             d { "MmsDownloader: from='${parsed.from}' subject='${parsed.subject}' textLen=${parsed.textBody.length} images=${parsed.imageParts.size}" }
 
+            // ── MDM hard-filter — must run before storeMms() touches the CP ──────
+            // storeMms() performs the placeholder update + part/addr inserts, so
+            // this check has to happen here, right after the sender is known from
+            // the parsed PDU, not inside storeMms() itself.
+            val filterResult = SmsWhitelistManager.check(context, parsed.from)
+            if (!filterResult.allowed) {
+                Log.i(TAG, "MmsDownloader: dropped MMS from ${parsed.from} — ${filterResult.reason}")
+                deletePlaceholder(context, msgId)
+                EventBus.getDefault().post(RefreshConversations())
+                return
+            }
+            // ──────────────────────────────────────────────────────────────────────
+
             // 4–6. Store and notify
             storeMms(context, msgId, parsed)
 
@@ -409,6 +422,10 @@ object MmsDownloader {
         }
 
         // ── Block-list check, notification, EventBus ──────────────────────────
+        // This is the local, user-configurable soft-filter (upstream blocked_numbers
+        // and blocked_keywords tables). It only suppresses the notification — the
+        // message is still stored. The MDM hard-filter above already handles the
+        // case where the message should never be stored at all.
         val body    = MmsHelper.getMmsDisplayBody(context, msgId, parsed.subject)
         val keywords = App.get().database.blockedKeywordsDao().getAll()
         val blockedNumbers = App.get().database.blockedNumbersDao().getAll()

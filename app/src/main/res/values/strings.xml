@@ -44,6 +44,7 @@
     <string name="you">You</string>
     <string name="message_copied">Message copied</string>
     <string name="no_messages">No messages in this conversation.</string>
+    <string name="message_blocked_by_policy">Message blocked: Contact your admin.</string>
 
     <!-- ─── Context Menu Actions ─── -->
     <string name="mark_as_read">Mark as Read</string>

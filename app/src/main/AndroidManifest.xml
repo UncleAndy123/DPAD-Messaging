@@ -32,10 +32,7 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
-    <!-- ─── APN Settings Trial by WonkySim ─── -->
-    <uses-permission android:name="android.permission.MODIFY_APN_SETTINGS" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.READ_APN_SETTINGS" />"
+
 
     <!-- ─── Scheduling ─── -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />

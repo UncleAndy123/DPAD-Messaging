@@ -22,7 +22,7 @@ object SmsWhitelistManager {
     private const val TAG = "DPAD_MSG"
     const val KEY_ALLOWED = "sms_allowed_numbers"
     const val KEY_BLOCKED = "sms_blocked_numbers"
-    const val KEY_MODE    = "sms_filter_mode"
+    const val KEY_MODE = "sms_filter_mode"
 
     enum class FilterMode { OFF, WHITELIST, BLOCKLIST }
 
@@ -33,12 +33,17 @@ object SmsWhitelistManager {
         val bundle = rm.applicationRestrictions
 
         // Temporary diagnostic — remove once filtering is confirmed working.
-        Log.d("DPAD_MSG", "SmsWhitelistManager.check() address=$address mode=${bundle.getString(KEY_MODE)} allowed=${bundle.getString(KEY_ALLOWED)} blocked=${bundle.getString(KEY_BLOCKED)}")
+        Log.d(
+            "DPAD_MSG",
+            "SmsWhitelistManager.check() address=$address mode=${bundle.getString(KEY_MODE)} allowed=${
+                bundle.getString(KEY_ALLOWED)
+            } blocked=${bundle.getString(KEY_BLOCKED)}"
+        )
 
         val mode = when (bundle.getString(KEY_MODE, "off")?.lowercase()) {
             "whitelist" -> FilterMode.WHITELIST
             "blocklist" -> FilterMode.BLOCKLIST
-            else        -> FilterMode.OFF
+            else -> FilterMode.OFF
         }
 
         if (mode == FilterMode.OFF) return FilterResult(true, "filtering off")
@@ -53,6 +58,7 @@ object SmsWhitelistManager {
                 else
                     FilterResult(false, "not in whitelist")
             }
+
             FilterMode.BLOCKLIST -> {
                 val blocked = parseNumbers(bundle.getString(KEY_BLOCKED, ""))
                 if (blocked.contains(normalized))
@@ -60,6 +66,7 @@ object SmsWhitelistManager {
                 else
                     FilterResult(true, "not in blocklist")
             }
+
             FilterMode.OFF -> FilterResult(true, "filtering off")
         }
     }
@@ -68,8 +75,23 @@ object SmsWhitelistManager {
         csv?.split(",")?.map { normalize(it.trim()) }?.filter { it.isNotEmpty() }?.toSet()
             ?: emptySet()
 
-    private fun normalize(number: String): String =
-        number.filter { it.isDigit() || it == '+' || it == '*' }
-            .trimStart('+').trimStart('1').takeIf { it.length >= 10 }
-            ?: number.filter { it.isDigit() || it == '*' }
+    private fun normalize(number: String): String {
+        // Wildcard that allows all.
+        if (number.trim() == "*") return "*"
+
+        // Strip everything that isn't a digit or a '+'
+        val cleaned = number.filter { it.isDigit() || it == '+' }
+        if (cleaned.isEmpty()) return ""
+
+        // Drop leading '+' if present; compare on digits only
+        val digits = cleaned.trimStart('+').filter { it.isDigit() }
+        if (digits.isEmpty()) return ""
+
+        // NANP normalization: Only strip the first digit from the number.
+        return if (digits.length == 11 && digits.startsWith("1")) {
+            digits.removePrefix("1")
+        } else {
+            digits
+        }
+    }
 }

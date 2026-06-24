@@ -23,6 +23,13 @@ import org.greenrobot.eventbus.EventBus
  *
  * Phase 1 goal: introduce an adapter layer without changing behavior.
  * Current implementation delegates to existing SmsSender/MmsSender.
+ *
+ * MDM filter enforcement: every outgoing send call funnels through this
+ * interface (from ThreadActivity, retry, HeadlessSmsSendService, and
+ * ScheduledMessageReceiver), so the MDM whitelist/blocklist check lives
+ * inside each interface method's implementation. This is the authoritative
+ * outgoing security boundary — UI-layer checks elsewhere are pre-validation
+ * for UX only.
  */
 interface UnifiedMessageSender {
     suspend fun sendSms(
@@ -55,6 +62,57 @@ interface UnifiedMessageSender {
 }
 
 /**
+ * Shared MDM outgoing filter check used by all UnifiedMessageSender impls.
+ *
+ * Returns the list of recipients that are NOT allowed by the current policy.
+ * Empty list means the send may proceed. Any non-empty list means the send
+ * MUST be aborted by the caller — there is no "partial send" semantics here,
+ * since allowing some recipients but not others on a group message would
+ * leak the policy state to the user.
+ *
+ * If a scheduledMessageId is supplied the failed-send is also recorded in
+ * the messages DB so the user sees the outcome in the thread.
+ */
+internal object OutgoingFilter {
+    private const val TAG = "DPAD_MSG"
+
+    suspend fun checkAndRecord(
+        context: Context,
+        recipients: List<String>,
+        scheduledMessageId: Long?
+    ): List<String> {
+        val blocked = recipients.filter { recipient ->
+            !SmsWhitelistManager.check(context, recipient).allowed
+        }
+        if (blocked.isNotEmpty()) {
+            Log.i(TAG, "OutgoingFilter: blocked send — recipients not permitted: $blocked")
+            if (scheduledMessageId != null) {
+                runCatching {
+                    val dao = App.get().database.messagesDao()
+                    val msg = dao.getMessage(scheduledMessageId)
+                    if (msg != null) {
+                        dao.updateMessage(
+                            msg.copy(
+                                type = Message.TYPE_FAILED,
+                                status = Message.STATUS_FAILED,
+                                isScheduled = false
+                            )
+                        )
+                        EventBus.getDefault().post(RefreshConversations())
+                        if (msg.threadId > 0L) {
+                            EventBus.getDefault().post(RefreshMessages(msg.threadId))
+                        }
+                    }
+                }.onFailure { e ->
+                    Log.w(TAG, "OutgoingFilter: failed to record blocked scheduled message status", e)
+                }
+            }
+        }
+        return blocked
+    }
+}
+
+/**
  * Legacy adapter preserving existing behavior.
  */
 object LegacyUnifiedMessageSender : UnifiedMessageSender {
@@ -66,6 +124,9 @@ object LegacyUnifiedMessageSender : UnifiedMessageSender {
         subscriptionId: Int,
         scheduledMessageId: Long?
     ) {
+        // MDM outgoing filter
+        if (OutgoingFilter.checkAndRecord(context, listOf(phoneNumber), scheduledMessageId).isNotEmpty()) return
+
         SmsSender.send(
             context = context,
             phoneNumber = phoneNumber,
@@ -86,6 +147,9 @@ object LegacyUnifiedMessageSender : UnifiedMessageSender {
         subscriptionId: Int,
         scheduledMessageId: Long?
     ) {
+        // MDM outgoing filter
+        if (OutgoingFilter.checkAndRecord(context, recipients, scheduledMessageId).isNotEmpty()) return
+
         MmsSender.send(
             context = context,
             recipients = recipients,
@@ -105,6 +169,9 @@ object LegacyUnifiedMessageSender : UnifiedMessageSender {
         fallbackThreadId: Long,
         subscriptionId: Int
     ) {
+        // MDM outgoing filter — entire fanout aborts if any recipient is blocked.
+        if (OutgoingFilter.checkAndRecord(context, recipients, null).isNotEmpty()) return
+
         for (recipient in recipients) {
             val recipientThreadId = try {
                 Telephony.Threads.getOrCreateThreadId(context, recipient)
@@ -160,6 +227,9 @@ object LibraryUnifiedMessageSender : UnifiedMessageSender {
         subscriptionId: Int,
         scheduledMessageId: Long?
     ) {
+        // MDM outgoing filter
+        if (OutgoingFilter.checkAndRecord(context, listOf(phoneNumber), scheduledMessageId).isNotEmpty()) return
+
         val settings = KlinkerSettings().apply {
             setUseSystemSending(true)
             setGroup(false)
@@ -191,6 +261,9 @@ object LibraryUnifiedMessageSender : UnifiedMessageSender {
             transaction.sendNewMessage(message)
         } catch (e: Exception) {
             Log.e(TAG, "LibraryUnifiedMessageSender: SMS library send failed, falling back to legacy", e)
+            // Note: this fallback also goes through the legacy sender, which re-applies
+            // the filter check — but at this point we've already passed the check above,
+            // so the fallback will pass through unchanged. Acceptable double-check.
             SmsSender.send(
                 context = context,
                 phoneNumber = phoneNumber,
@@ -212,6 +285,9 @@ object LibraryUnifiedMessageSender : UnifiedMessageSender {
         subscriptionId: Int,
         scheduledMessageId: Long?
     ) {
+        // MDM outgoing filter
+        if (OutgoingFilter.checkAndRecord(context, recipients, scheduledMessageId).isNotEmpty()) return
+
         // Keep existing MMS path unchanged for phase 2.
         MmsSender.send(
             context = context,
@@ -233,6 +309,7 @@ object LibraryUnifiedMessageSender : UnifiedMessageSender {
         subscriptionId: Int
     ) {
         // Keep existing fanout path unchanged for phase 2.
+        // The filter check happens inside LegacyUnifiedMessageSender.sendGroupSmsFanout.
         LegacyUnifiedMessageSender.sendGroupSmsFanout(
             context = context,
             recipients = recipients,

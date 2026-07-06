@@ -229,7 +229,6 @@ class MainActivity : BaseActivity() {
             binding.tvEmpty.visibility = if (conversations.isEmpty()) View.VISIBLE else View.GONE
 
             if (isSearchVisible) {
-                // While searching, keep focus in the search box.
                 binding.etSearch.requestFocus()
                 return@submitList
             }
@@ -244,10 +243,19 @@ class MainActivity : BaseActivity() {
                 ?.let { threadId -> conversations.indexOfFirst { it.threadId == threadId } }
                 ?.takeIf { it >= 0 }
 
+            // If RecyclerView already has a focused child, the user navigated during the
+            // async load — don't override with focus restoration.
+            if (binding.rvConversations.focusedChild != null) {
+                if (targetPosition != null) {
+                    binding.rvConversations.scrollToPosition(targetPosition)
+                }
+                pendingFocusThreadId = null
+                return@submitList
+            }
+
             when {
                 targetPosition != null -> binding.rvConversations.focusItem(targetPosition)
-                binding.rvConversations.focusedChild == null &&
-                    !binding.btnNewConversation.isFocused &&
+                !binding.btnNewConversation.isFocused &&
                     !binding.btnSearch.isFocused &&
                     !binding.btnOverflow.isFocused -> {
                     binding.rvConversations.focusFirstItem()

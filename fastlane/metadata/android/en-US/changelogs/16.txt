@@ -1,0 +1,1 @@
+- Fix: Keyboard navigation no longer jumps back when returning to conversation list

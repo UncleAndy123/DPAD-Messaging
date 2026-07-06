@@ -1,0 +1,4 @@
+- Fix: Focus indicator was invisible on sent messages
+- Fix: Accent color changes now apply to all activities without restarting
+- Fix: Keyboard navigation no longer jumps back when returning to conversation list
+- New: Backup and restore your messages

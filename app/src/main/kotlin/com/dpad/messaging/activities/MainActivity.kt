@@ -244,18 +244,16 @@ class MainActivity : BaseActivity() {
                 ?.let { threadId -> conversations.indexOfFirst { it.threadId == threadId } }
                 ?.takeIf { it >= 0 }
 
-            binding.rvConversations.post {
-                when {
-                    targetPosition != null -> binding.rvConversations.focusItem(targetPosition)
-                    binding.rvConversations.focusedChild == null &&
-                        !binding.btnNewConversation.isFocused &&
-                        !binding.btnSearch.isFocused &&
-                        !binding.btnOverflow.isFocused -> {
-                        binding.rvConversations.focusFirstItem()
-                    }
+            when {
+                targetPosition != null -> binding.rvConversations.focusItem(targetPosition)
+                binding.rvConversations.focusedChild == null &&
+                    !binding.btnNewConversation.isFocused &&
+                    !binding.btnSearch.isFocused &&
+                    !binding.btnOverflow.isFocused -> {
+                    binding.rvConversations.focusFirstItem()
                 }
-                pendingFocusThreadId = null
             }
+            pendingFocusThreadId = null
         }
     }
 

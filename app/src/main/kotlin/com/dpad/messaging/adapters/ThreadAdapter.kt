@@ -9,7 +9,6 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.bumptech.glide.request.target.Target
 import com.dpad.messaging.R
 import com.dpad.messaging.activities.ImageViewerActivity
 import com.dpad.messaging.databinding.ItemMessageFailedBinding
@@ -49,6 +48,22 @@ class ThreadAdapter(
                 else -> false
             }
             override fun areContentsTheSame(old: ThreadItem, new: ThreadItem) = old == new
+        }
+
+        // Reusable calendar for date arithmetic to avoid per-call allocations.
+        private val calendar = Calendar.getInstance()
+
+        private val timeFormat12h by lazy {
+            SimpleDateFormat("h:mm a", Locale.getDefault())
+        }
+        private val timeFormat24h by lazy {
+            SimpleDateFormat("HH:mm", Locale.getDefault())
+        }
+        private val dayNameFormat by lazy {
+            SimpleDateFormat("EEEE", Locale.getDefault())
+        }
+        private val fullDateFormat by lazy {
+            SimpleDateFormat("MMMM d, yyyy", Locale.getDefault())
         }
     }
 
@@ -96,6 +111,12 @@ class ThreadAdapter(
         }
     }
 
+    override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
+        super.onViewRecycled(holder)
+        val iv = holder.itemView.findViewById<android.widget.ImageView>(R.id.iv_attachment)
+        if (iv != null) Glide.with(holder.itemView.context).clear(iv)
+    }
+
     // ─── ViewHolders ───────────────────────────────────────────────────────
 
     inner class DateHeaderViewHolder(
@@ -125,7 +146,7 @@ class ThreadAdapter(
                 val attachmentUri = message.attachmentsJson
                 Glide.with(binding.root.context)
                     .load(Uri.parse(attachmentUri))
-                    .override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
+
                     .into(binding.ivAttachment)
                 binding.ivAttachment.isFocusable = true
                 binding.ivAttachment.isFocusableInTouchMode = true
@@ -166,7 +187,7 @@ class ThreadAdapter(
                 val attachmentUri = message.attachmentsJson
                 Glide.with(binding.root.context)
                     .load(Uri.parse(attachmentUri))
-                    .override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
+
                     .into(binding.ivAttachment)
                 binding.ivAttachment.isFocusable = true
                 binding.ivAttachment.isFocusableInTouchMode = true
@@ -212,7 +233,7 @@ class ThreadAdapter(
                 val attachmentUri = message.attachmentsJson
                 Glide.with(binding.root.context)
                     .load(Uri.parse(attachmentUri))
-                    .override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
+
                     .into(binding.ivAttachment)
                 binding.ivAttachment.isFocusable = true
                 binding.ivAttachment.isFocusableInTouchMode = true
@@ -253,8 +274,8 @@ class ThreadAdapter(
 
     private fun formatTime(timestamp: Long): String {
         if (timestamp == 0L) return ""
-        val pattern = if (Prefs.get().timeFormat == Prefs.TIME_FORMAT_24H) "HH:mm" else "h:mm a"
-        return SimpleDateFormat(pattern, Locale.getDefault()).format(Date(timestamp))
+        val fmt = if (Prefs.get().timeFormat == Prefs.TIME_FORMAT_24H) timeFormat24h else timeFormat12h
+        return fmt.format(Date(timestamp))
     }
 
     private fun formatHeaderDate(timestamp: Long, context: android.content.Context): String {
@@ -264,9 +285,9 @@ class ThreadAdapter(
             isSameDay(now, msg) -> context.getString(R.string.today)
             isYesterday(now, msg) -> context.getString(R.string.yesterday)
             diffDays(now, msg) < 7 ->
-                SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(timestamp))
+                dayNameFormat.format(Date(timestamp))
             else ->
-                SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()).format(Date(timestamp))
+                fullDateFormat.format(Date(timestamp))
         }
     }
 
@@ -275,7 +296,10 @@ class ThreadAdapter(
         a.get(Calendar.DAY_OF_YEAR) == b.get(Calendar.DAY_OF_YEAR)
 
     private fun isYesterday(now: Calendar, msg: Calendar): Boolean {
-        val yesterday = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -1) }
+        val yesterday = calendar.apply {
+            timeInMillis = now.timeInMillis
+            add(Calendar.DAY_OF_YEAR, -1)
+        }
         return isSameDay(yesterday, msg)
     }
 

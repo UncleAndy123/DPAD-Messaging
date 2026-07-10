@@ -37,6 +37,7 @@ import com.dpad.messaging.databinding.ActivityThreadBinding
 import com.dpad.messaging.events.RefreshMessages
 import com.dpad.messaging.extensions.getMessagesForThread
 import com.dpad.messaging.extensions.markThreadAsReadInTelephony
+import com.dpad.messaging.helpers.MessageCache
 import com.dpad.messaging.helpers.MmsSender
 import com.dpad.messaging.helpers.Prefs
 import com.dpad.messaging.helpers.SendingMode
@@ -198,7 +199,6 @@ class ThreadActivity : BaseActivity() {
         super.onResume()
         EventBus.getDefault().register(this)
         applyAccent()
-        loadMessages()   // Bug #1 fix: refresh thread when returning from background
     }
 
     override fun onPause() {
@@ -771,11 +771,21 @@ class ThreadActivity : BaseActivity() {
 
     private fun loadMessages() {
         if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.loadMessages() called for threadId=$threadId")
+
+        // Show cached data immediately for instant warm loads
+        val cached = MessageCache.get(threadId)
+        if (cached != null) {
+            if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.loadMessages() cache hit: ${cached.size} messages")
+            displayMessages(cached)
+        }
+
+        // Always refresh from the real source of truth (Telephony ContentProvider)
         lifecycleScope.launch {
             val messages = withContext(Dispatchers.IO) {
                 getMessagesForThread(threadId, App.get().contactHelper)
             }
             if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.loadMessages() got ${messages.size} messages for threadId=$threadId")
+            MessageCache.put(threadId, messages)
             displayMessages(messages)
         }
     }

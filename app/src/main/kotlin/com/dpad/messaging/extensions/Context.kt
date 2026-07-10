@@ -65,7 +65,8 @@ fun Context.getConversationsFromTelephony(
     contactHelper: ContactHelper,
     pinnedThreadIds: Set<Long> = emptySet(),
     archivedThreadIds: Set<Long>? = null,
-    mutedThreadIds: Set<Long> = emptySet()
+    mutedThreadIds: Set<Long> = emptySet(),
+    maxCount: Int = Int.MAX_VALUE
 ): List<Conversation> {
     val excluded = archivedThreadIds ?: Prefs.get().getArchivedThreadIds()
     val uri = Uri.parse("content://mms-sms/conversations?simple=true")
@@ -80,6 +81,7 @@ fun Context.getConversationsFromTelephony(
 
     val conversations = mutableListOf<Conversation>()
     val ownNumbers = getOwnPhoneNumbers()
+    val canonicalAddressCache = hashMapOf<Long, String?>()
 
     try {
         contentResolver.query(uri, projection, null, null, "${Telephony.Threads.DATE} DESC")
@@ -91,6 +93,8 @@ fun Context.getConversationsFromTelephony(
                 val idxRead = cursor.getColumnIndex(Telephony.Threads.READ)
 
                 while (cursor.moveToNext()) {
+                    if (conversations.size >= maxCount) break
+
                     val threadId = cursor.getLong(idxId)
                     if (threadId in excluded) continue  // skip archived threads
                     val recipientIds = cursor.getString(idxRecipients) ?: continue
@@ -100,7 +104,7 @@ fun Context.getConversationsFromTelephony(
 
                     // Filter out own numbers so group participant lists and titles
                     // don't include the device's own phone number.
-                    val allNumbers = resolveRecipientIds(recipientIds)
+                    val allNumbers = resolveRecipientIds(recipientIds, canonicalAddressCache)
                     val phoneNumbers = allNumbers.filter { num ->
                         val digits = num.filter { it.isDigit() }
                         digits !in ownNumbers && digits.takeLast(10) !in ownNumbers
@@ -150,16 +154,29 @@ fun Context.getConversationsFromTelephony(
  * e.g. "3 7" → ["+15551234567", "+15559876543"]
  */
 private fun Context.resolveRecipientIds(recipientIds: String): List<String> {
+    return resolveRecipientIds(recipientIds, hashMapOf())
+}
+
+private fun Context.resolveRecipientIds(
+    recipientIds: String,
+    canonicalAddressCache: MutableMap<Long, String?>
+): List<String> {
     return recipientIds.trim().split(" ").mapNotNull { idStr ->
         val id = idStr.trim().toLongOrNull() ?: return@mapNotNull null
+        if (canonicalAddressCache.containsKey(id)) {
+            return@mapNotNull canonicalAddressCache[id]
+        }
+
         val uri = Uri.parse("content://mms-sms/canonical-address/$id")
-        try {
-            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+        val resolved = try {
+            contentResolver.query(uri, arrayOf("address"), null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) cursor.getString(0) else null
             }
         } catch (e: Exception) {
             null
         }
+        canonicalAddressCache[id] = resolved
+        resolved
     }.filter { it.isNotBlank() }
 }
 

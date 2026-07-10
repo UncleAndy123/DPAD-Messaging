@@ -12,9 +12,9 @@ RepoType: git
 Repo: https://github.com/jbriones95/DPAD-Messaging
 
 Builds:
-  - versionName: 0.1.6
-    versionCode: 16
-    commit: v0.1.6
+  - versionName: 0.1.8
+    versionCode: 18
+    commit: v0.1.8
     subdir: app
     gradle:
       - yes
@@ -25,5 +25,5 @@ Builds:
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 0.1.6
-CurrentVersionCode: 16
+CurrentVersion: 0.1.8
+CurrentVersionCode: 18

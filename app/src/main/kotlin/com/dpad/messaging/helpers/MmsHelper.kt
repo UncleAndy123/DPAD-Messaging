@@ -25,24 +25,7 @@ object MmsHelper {
      * Returns the text/plain body of an MMS message, or an empty string if none.
      */
     fun getMmsTextBody(context: Context, msgId: Long): String {
-        val partsUri = Uri.parse("content://mms/$msgId/part")
-        try {
-            context.contentResolver.query(
-                partsUri,
-                arrayOf("_id", "ct", "text"),
-                null, null, null
-            )?.use { cursor ->
-                val idxCt   = cursor.getColumnIndex("ct")
-                val idxText = cursor.getColumnIndex("text")
-                while (cursor.moveToNext()) {
-                    val ct = cursor.getString(idxCt) ?: continue
-                    if (ct == "text/plain") {
-                        return cursor.getString(idxText) ?: ""
-                    }
-                }
-            }
-        } catch (_: Exception) {}
-        return ""
+        return getCachedParts(context, msgId).textBody
     }
 
     /**
@@ -50,25 +33,7 @@ object MmsHelper {
      * e.g. "content://mms/part/42", or null if there is no image part.
      */
     fun getMmsImagePartUri(context: Context, msgId: Long): String? {
-        val partsUri = Uri.parse("content://mms/$msgId/part")
-        try {
-            context.contentResolver.query(
-                partsUri,
-                arrayOf("_id", "ct"),
-                null, null, null
-            )?.use { cursor ->
-                val idxId = cursor.getColumnIndex("_id")
-                val idxCt = cursor.getColumnIndex("ct")
-                while (cursor.moveToNext()) {
-                    val ct = cursor.getString(idxCt) ?: continue
-                    if (ct.isImageMimeType()) {
-                        val partId = cursor.getLong(idxId)
-                        return "content://mms/part/$partId"
-                    }
-                }
-            }
-        } catch (_: Exception) {}
-        return null
+        return getCachedParts(context, msgId).imagePartUri
     }
 
     /**
@@ -77,21 +42,7 @@ object MmsHelper {
      * Useful for showing e.g. "audio/mpeg" or "video/mp4" as a fallback label.
      */
     fun getMmsAttachmentLabel(context: Context, msgId: Long): String {
-        val partsUri = Uri.parse("content://mms/$msgId/part")
-        try {
-            context.contentResolver.query(
-                partsUri,
-                arrayOf("ct"),
-                null, null, null
-            )?.use { cursor ->
-                val idxCt = cursor.getColumnIndex("ct")
-                while (cursor.moveToNext()) {
-                    val ct = cursor.getString(idxCt) ?: continue
-                    if (!ct.isImageMimeType() && ct !in SKIP_MIME_TYPES) return ct
-                }
-            }
-        } catch (_: Exception) {}
-        return ""
+        return getCachedParts(context, msgId).attachmentLabel
     }
 
     /**
@@ -109,5 +60,56 @@ object MmsHelper {
         val attachLabel = getMmsAttachmentLabel(context, msgId)
         if (attachLabel.isNotBlank()) return attachLabel
         return "MMS"
+    }
+
+    private fun getCachedParts(context: Context, msgId: Long): MmsPartCache.CachedParts {
+        val cached = MmsPartCache.get(msgId)
+        if (cached != null) return cached
+
+        var textBody = ""
+        var imagePartUri: String? = null
+        var attachmentLabel = ""
+
+        val partsUri = Uri.parse("content://mms/$msgId/part")
+        try {
+            context.contentResolver.query(
+                partsUri,
+                arrayOf("_id", "ct", "text"),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val idxId = cursor.getColumnIndex("_id")
+                val idxCt = cursor.getColumnIndex("ct")
+                val idxText = cursor.getColumnIndex("text")
+
+                while (cursor.moveToNext()) {
+                    val ct = cursor.getString(idxCt) ?: continue
+
+                    if (textBody.isBlank() && ct == "text/plain") {
+                        textBody = cursor.getString(idxText) ?: ""
+                    }
+
+                    if (imagePartUri == null && ct.isImageMimeType()) {
+                        val partId = cursor.getLong(idxId)
+                        imagePartUri = "content://mms/part/$partId"
+                    }
+
+                    if (attachmentLabel.isBlank() && !ct.isImageMimeType() && ct !in SKIP_MIME_TYPES) {
+                        attachmentLabel = ct
+                    }
+
+                    if (textBody.isNotBlank() && imagePartUri != null && attachmentLabel.isNotBlank()) {
+                        break
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        return MmsPartCache.CachedParts(
+            textBody = textBody,
+            imagePartUri = imagePartUri,
+            attachmentLabel = attachmentLabel
+        ).also { MmsPartCache.put(msgId, it) }
     }
 }

@@ -233,8 +233,7 @@ class MainActivity : BaseActivity() {
                 getConversationsFromTelephony(
                     App.get().contactHelper,
                     pinnedIds,
-                    mutedThreadIds = mutedIds,
-                    maxCount = MAX_CONVERSATIONS
+                    mutedThreadIds = mutedIds
                 )
             }
             ConversationCache.put(conversations)
@@ -297,8 +296,7 @@ class MainActivity : BaseActivity() {
                 getConversationsFromTelephony(
                     App.get().contactHelper,
                     pinnedIds,
-                    mutedThreadIds = mutedIds,
-                    maxCount = MAX_SEARCH_CONVERSATIONS
+                    mutedThreadIds = mutedIds
                 )
             }.also { ConversationCache.put(it) }
             val lower = query.lowercase()
@@ -572,7 +570,5 @@ class MainActivity : BaseActivity() {
     companion object {
         private const val REQUEST_PERMISSIONS = 1001
         private const val REQUEST_DEFAULT_SMS = 1002
-        private const val MAX_CONVERSATIONS = 150
-        private const val MAX_SEARCH_CONVERSATIONS = 300
     }
 }

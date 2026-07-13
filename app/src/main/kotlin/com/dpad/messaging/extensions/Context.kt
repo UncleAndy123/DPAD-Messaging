@@ -187,8 +187,9 @@ private fun Context.resolveRecipientIds(
 suspend fun Context.getMessagesForThread(
     threadId: Long,
     contactHelper: ContactHelper,
-    limit: Int = 200
+    limit: Int = Int.MAX_VALUE
 ): List<Message> {
+    val cappedLimit = if (limit <= 0) Int.MAX_VALUE else limit
     val messages = mutableListOf<Message>()
 
     // ── SMS ──────────────────────────────────────────────────────────────────
@@ -204,15 +205,35 @@ suspend fun Context.getMessagesForThread(
         Telephony.Sms.STATUS,
         Telephony.Sms.SUBSCRIPTION_ID
     )
+    val smsFallbackProjection = arrayOf(
+        Telephony.Sms._ID,
+        Telephony.Sms.BODY,
+        Telephony.Sms.DATE,
+        Telephony.Sms.TYPE,
+        Telephony.Sms.READ,
+        Telephony.Sms.ADDRESS
+    )
 
     try {
-        contentResolver.query(
-            smsUri,
-            smsProjection,
-            "${Telephony.Sms.THREAD_ID} = ?",
-            arrayOf(threadId.toString()),
-            "${Telephony.Sms.DATE} DESC LIMIT $limit"
-        )?.use { cursor ->
+        val smsCursor = try {
+            contentResolver.query(
+                smsUri,
+                smsProjection,
+                "${Telephony.Sms.THREAD_ID} = ?",
+                arrayOf(threadId.toString()),
+                "${Telephony.Sms.DATE} DESC"
+            )
+        } catch (_: Exception) {
+            contentResolver.query(
+                smsUri,
+                smsFallbackProjection,
+                "${Telephony.Sms.THREAD_ID} = ?",
+                arrayOf(threadId.toString()),
+                "${Telephony.Sms.DATE} DESC"
+            )
+        }
+
+        smsCursor?.use { cursor ->
             val idxId = cursor.getColumnIndex(Telephony.Sms._ID)
             val idxBody = cursor.getColumnIndex(Telephony.Sms.BODY)
             val idxDate = cursor.getColumnIndex(Telephony.Sms.DATE)
@@ -223,8 +244,11 @@ suspend fun Context.getMessagesForThread(
             val idxStatus = cursor.getColumnIndex(Telephony.Sms.STATUS)
             val idxSubId = cursor.getColumnIndex(Telephony.Sms.SUBSCRIPTION_ID)
 
-            while (cursor.moveToNext()) {
-                val address = cursor.getString(idxAddress) ?: ""
+            var loadedSms = 0
+            while (cursor.moveToNext() && loadedSms < cappedLimit) {
+                if (idxId < 0 || idxType < 0) continue
+
+                val address = if (idxAddress >= 0) cursor.getString(idxAddress) ?: "" else ""
                 val type = cursor.getInt(idxType)
                 val contactInfo = if (type == Message.TYPE_INBOX)
                     contactHelper.resolve(address) else null
@@ -233,19 +257,20 @@ suspend fun Context.getMessagesForThread(
                     Message(
                         id = cursor.getLong(idxId),
                         threadId = threadId,
-                        body = cursor.getString(idxBody) ?: "",
+                        body = if (idxBody >= 0) cursor.getString(idxBody) ?: "" else "",
                         type = type,
-                        date = cursor.getLong(idxDate),
-                        dateSent = cursor.getLong(idxDateSent),
-                        read = cursor.getInt(idxRead) == 1,
+                        date = if (idxDate >= 0) cursor.getLong(idxDate) else 0L,
+                        dateSent = if (idxDateSent >= 0) cursor.getLong(idxDateSent) else 0L,
+                        read = if (idxRead >= 0) cursor.getInt(idxRead) == 1 else true,
                         address = address,
                         senderName = contactInfo?.displayName ?: address,
                         senderPhotoUri = contactInfo?.photoUri ?: "",
                         isMms = false,
-                        status = cursor.getInt(idxStatus),
-                        subscriptionId = cursor.getInt(idxSubId)
+                        status = if (idxStatus >= 0) cursor.getInt(idxStatus) else Message.STATUS_NONE,
+                        subscriptionId = if (idxSubId >= 0) cursor.getInt(idxSubId) else -1
                     )
                 )
+                loadedSms++
             }
         }
     } catch (e: Exception) {
@@ -255,26 +280,42 @@ suspend fun Context.getMessagesForThread(
     // ── MMS ──────────────────────────────────────────────────────────────────
     val mmsUri = Uri.parse("content://mms")
     val mmsProjection = arrayOf("_id", "date", "msg_box", "read", "sub")
+    val mmsFallbackProjection = arrayOf("_id", "date", "msg_box", "read")
     try {
-        contentResolver.query(
-            mmsUri,
-            mmsProjection,
-            "thread_id = ?",
-            arrayOf(threadId.toString()),
-            "date DESC LIMIT $limit"
-        )?.use { cursor ->
-            val idxId     = cursor.getColumnIndexOrThrow("_id")
-            val idxDate   = cursor.getColumnIndexOrThrow("date")
-            val idxMsgBox = cursor.getColumnIndexOrThrow("msg_box")
-            val idxRead   = cursor.getColumnIndexOrThrow("read")
-            val idxSub    = cursor.getColumnIndexOrThrow("sub")
+        val mmsCursor = try {
+            contentResolver.query(
+                mmsUri,
+                mmsProjection,
+                "thread_id = ?",
+                arrayOf(threadId.toString()),
+                "date DESC"
+            )
+        } catch (_: Exception) {
+            contentResolver.query(
+                mmsUri,
+                mmsFallbackProjection,
+                "thread_id = ?",
+                arrayOf(threadId.toString()),
+                "date DESC"
+            )
+        }
 
-            while (cursor.moveToNext()) {
+        mmsCursor?.use { cursor ->
+            val idxId = cursor.getColumnIndex("_id")
+            val idxDate = cursor.getColumnIndex("date")
+            val idxMsgBox = cursor.getColumnIndex("msg_box")
+            val idxRead = cursor.getColumnIndex("read")
+            val idxSub = cursor.getColumnIndex("sub")
+
+            var loadedMms = 0
+            while (cursor.moveToNext() && loadedMms < cappedLimit) {
+                if (idxId < 0 || idxDate < 0 || idxMsgBox < 0) continue
+
                 val id      = cursor.getLong(idxId)
                 val date    = cursor.getLong(idxDate) * 1000L   // MMS date is in seconds
                 val msgBox  = cursor.getInt(idxMsgBox)
-                val read    = cursor.getInt(idxRead) == 1
-                val subject = cursor.getString(idxSub) ?: ""
+                val read    = if (idxRead >= 0) cursor.getInt(idxRead) == 1 else true
+                val subject = if (idxSub >= 0) cursor.getString(idxSub) ?: "" else ""
 
                 // MMS msg_box: 1=inbox, 2=sent, 4=outbox, 5=failed
                 val type = when (msgBox) {
@@ -312,6 +353,7 @@ suspend fun Context.getMessagesForThread(
                         status         = Message.STATUS_NONE
                     )
                 )
+                loadedMms++
             }
         }
     } catch (e: Exception) {

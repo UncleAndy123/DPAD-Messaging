@@ -2,6 +2,8 @@ package com.dpad.messaging.helpers
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.telephony.TelephonyManager
+import android.util.Log
 
 /**
  * Thin SharedPreferences wrapper for user-configurable settings.
@@ -34,6 +36,7 @@ class Prefs private constructor(context: Context) {
         private const val KEY_UI_SCALE            = "ui_scale"
         private const val KEY_MMS_PROXY_HOST      = "mms_proxy_host"
         private const val KEY_MMS_PROXY_PORT      = "mms_proxy_port"
+        private const val KEY_MMS_PROXY_INITIALIZED = "mms_proxy_initialized"
         private const val KEY_DEFAULT_SMS_DISMISSED = "default_sms_dismissed"
 
         const val PRIVACY_FULL        = "full"
@@ -54,17 +57,74 @@ class Prefs private constructor(context: Context) {
         const val UI_SCALE_LARGE      = "large"     // 1.25x
         const val UI_SCALE_XLARGE     = "xlarge"    // 1.5x
 
+        private const val TAG = "Prefs"
+
         @Volatile private var instance: Prefs? = null
 
-        fun init(context: Context): Prefs =
-            instance ?: synchronized(this) {
+        fun init(context: Context): Prefs {
+            val prefs = instance ?: synchronized(this) {
                 instance ?: Prefs(context.applicationContext).also { instance = it }
             }
+            prefs.initMmsProxy(context)
+            return prefs
+        }
 
         fun get(): Prefs = checkNotNull(instance) { "Prefs.init() must be called before Prefs.get()" }
     }
 
     // ── Properties ────────────────────────────────────────────────────────────
+
+    /**
+     * Auto-detect the MMS proxy based on the active SIM carrier (one-shot).
+     * Only runs once; subsequent launches skip this.
+     */
+    private fun initMmsProxy(context: Context) {
+        if (mmsProxyInitialized) return
+
+        val simOperator = try {
+            val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+            tm?.simOperator ?: ""
+        } catch (e: SecurityException) {
+            Log.w(TAG, "initMmsProxy: no READ_PHONE_STATE permission — keeping default proxy")
+            ""
+        }
+
+        when {
+            // AT&T US: MCC 310, MNC 410, 560, 680, 890, 150
+            simOperator.startsWith("310410") || simOperator.startsWith("310560") ||
+            simOperator.startsWith("310680") || simOperator.startsWith("310890") ||
+            simOperator.startsWith("310150") -> {
+                mmsProxyHost = "proxy.mobile.att.net"
+                mmsProxyPort = 80
+                Log.i(TAG, "AT&T SIM detected — set MMS proxy to proxy.mobile.att.net:80")
+            }
+            // T-Mobile US: MCC 310, MNC 160, 200, 210, 220, 230, 240, 250, 260, 270, 310, 490, 660
+            simOperator.startsWith("310160") || simOperator.startsWith("310200") ||
+            simOperator.startsWith("310210") || simOperator.startsWith("310220") ||
+            simOperator.startsWith("310230") || simOperator.startsWith("310240") ||
+            simOperator.startsWith("310250") || simOperator.startsWith("310260") ||
+            simOperator.startsWith("310270") || simOperator.startsWith("310310") ||
+            simOperator.startsWith("310490") || simOperator.startsWith("310660") -> {
+                mmsProxyHost = ""
+                mmsProxyPort = -1
+                Log.i(TAG, "T-Mobile SIM detected — cleared MMS proxy")
+            }
+            // Verizon: MCC 310, MNC 004, 012
+            simOperator.startsWith("310004") || simOperator.startsWith("310012") -> {
+                mmsProxyHost = ""
+                mmsProxyPort = -1
+                Log.i(TAG, "Verizon SIM detected — cleared MMS proxy")
+            }
+            simOperator.isBlank() -> {
+                Log.i(TAG, "No SIM operator — keeping default MMS proxy proxy.mobile.att.net:80")
+            }
+            else -> {
+                Log.i(TAG, "Unknown carrier ($simOperator) — keeping default MMS proxy")
+            }
+        }
+
+        mmsProxyInitialized = true
+    }
 
     /** Show a "Delivered" status tick after the system confirms delivery. Default: false. */
     var deliveryReports: Boolean
@@ -210,13 +270,18 @@ class Prefs private constructor(context: Context) {
         else             -> 1.0f
     }
 
-var mmsProxyHost: String
-    get() = prefs.getString(KEY_MMS_PROXY_HOST, "proxy.mobile.att.net") ?: "proxy.mobile.att.net"
-    set(v) = prefs.edit().putString(KEY_MMS_PROXY_HOST, v.trim()).apply()
+    var mmsProxyHost: String
+        get() = prefs.getString(KEY_MMS_PROXY_HOST, "proxy.mobile.att.net") ?: "proxy.mobile.att.net"
+        set(v) = prefs.edit().putString(KEY_MMS_PROXY_HOST, v.trim()).apply()
 
-var mmsProxyPort: Int
-    get() = prefs.getInt(KEY_MMS_PROXY_PORT, 80)
-    set(v) = prefs.edit().putInt(KEY_MMS_PROXY_PORT, v).apply()
+    var mmsProxyPort: Int
+        get() = prefs.getInt(KEY_MMS_PROXY_PORT, 80)
+        set(v) = prefs.edit().putInt(KEY_MMS_PROXY_PORT, v).apply()
+
+    /** Whether the auto-detected MMS proxy has been persisted after first save. */
+    var mmsProxyInitialized: Boolean
+        get() = prefs.getBoolean(KEY_MMS_PROXY_INITIALIZED, false)
+        set(v) = prefs.edit().putBoolean(KEY_MMS_PROXY_INITIALIZED, v).apply()
 
     /** User declined the "set as default SMS app" prompt — don't ask again. */
     var defaultSmsDismissed: Boolean

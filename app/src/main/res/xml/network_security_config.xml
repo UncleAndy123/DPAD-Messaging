@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <base-config cleartextTrafficPermitted="false" />
+    <!--
+        MMS is intrinsically cleartext HTTP — carrier MMSCs use both domain names
+        and bare IP addresses (e.g. AT&T 166.137.91.130).  Blocking cleartext
+        breaks MMS on every carrier that serves content from an IP-based URL.
+        The domain-config below is kept for documentation / future-proofing.
+    -->
+    <base-config cleartextTrafficPermitted="true" />
 
-    <!-- Allow cleartext only for known carrier MMS endpoints. -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">mms.msg.eng.t-mobile.com</domain>
         <domain includeSubdomains="true">mms.vtext.com</domain>

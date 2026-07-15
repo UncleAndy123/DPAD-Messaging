@@ -47,9 +47,9 @@ import kotlin.coroutines.resumeWithException
 object MmsDownloader {
 
     private const val TAG = "DPAD_MSG"
-    private const val NETWORK_TIMEOUT_MS  = 30_000L
-    private const val HTTP_CONNECT_TIMEOUT = 30_000   // ms
-    private const val HTTP_READ_TIMEOUT    = 30_000   // ms
+    private const val NETWORK_TIMEOUT_MS  = 8_000L
+    private const val HTTP_CONNECT_TIMEOUT = 8_000   // ms
+    private const val HTTP_READ_TIMEOUT    = 10_000   // ms
 
     // PduHeaders constants
     private const val ADDR_TYPE_FROM = 137
@@ -89,10 +89,13 @@ object MmsDownloader {
         d { "MmsDownloader.download() url=$contentLocation msgId=$msgId" }
 
         try {
-            // 1. Acquire MMS network
+            // 1. Acquire MMS network (may be null on ROMs that don't expose MMS capability)
             val network = acquireMmsNetwork(context)
-                ?: throw Exception("Could not acquire MMS cellular network within ${NETWORK_TIMEOUT_MS}ms")
-            d { "MmsDownloader: acquired MMS network $network" }
+            if (network != null) {
+                d { "MmsDownloader: acquired MMS network $network" }
+            } else {
+                Log.w(TAG, "MmsDownloader: no MMS network — will use default data connection")
+            }
 
             // 2. Download PDU
             val pduBytes = downloadPdu(context, network, contentLocation)
@@ -136,7 +139,7 @@ object MmsDownloader {
     private suspend fun acquireMmsNetwork(context: Context): Network? {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
-        return withTimeoutOrNull(NETWORK_TIMEOUT_MS) {
+        val mmsNetwork = withTimeoutOrNull(NETWORK_TIMEOUT_MS) {
             suspendCancellableCoroutine { cont ->
                 val request = NetworkRequest.Builder()
                     .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
@@ -153,6 +156,47 @@ object MmsDownloader {
                         if (cont.isActive) cont.resumeWithException(
                             Exception("MMS network unavailable — carrier may not support MMS APN")
                         )
+                    }
+                }
+
+                cont.invokeOnCancellation {
+                    try { cm.unregisterNetworkCallback(callback) } catch (_: Exception) {}
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    cm.requestNetwork(request, callback, NETWORK_TIMEOUT_MS.toInt())
+                } else {
+                    @Suppress("DEPRECATION")
+                    cm.requestNetwork(request, callback)
+                }
+            }
+        }
+
+        if (mmsNetwork != null) return mmsNetwork
+
+        // Fallback: use any active network (many Mediatek/budget ROMs don't expose MMS
+        // capability, so the dedicated MMS request times out).
+        val active = cm.activeNetwork
+        if (active != null) {
+            d { "MmsDownloader: MMS network request timed out — falling back to active network $active" }
+            return active
+        }
+
+        // Attempt binding to any cellular network without MMS capability requirement.
+        return withTimeoutOrNull(NETWORK_TIMEOUT_MS) {
+            suspendCancellableCoroutine { cont ->
+                val request = NetworkRequest.Builder()
+                    .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
+                    .build()
+
+                val callback = object : ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: Network) {
+                        d { "MmsDownloader: fallback onAvailable $network" }
+                        if (cont.isActive) cont.resume(network)
+                    }
+                    override fun onUnavailable() {
+                        w { "MmsDownloader: fallback onUnavailable" }
+                        if (cont.isActive) cont.resume(null)
                     }
                 }
 
@@ -237,8 +281,9 @@ object MmsDownloader {
                     }
                 }
 
+                val port = (proxyPort ?: 80).coerceIn(1, 65535)
                 val url = URL(urlString)
-                val p = Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, proxyPort ?: 0))
+                val p = Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyHost, port))
                 connection = url.openConnection(p) as HttpURLConnection
             } else {
                 // No proxy discovered — use Network.openConnection when possible

@@ -11,6 +11,7 @@ import com.dpad.messaging.helpers.MmsDownloader
 import com.google.android.mms.pdu_alt.NotificationInd
 import com.google.android.mms.pdu_alt.PduParser
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Receives WAP_PUSH_DELIVER for incoming MMS messages.
@@ -51,6 +52,9 @@ class MmsReceiver : BroadcastReceiver() {
             return
         }
 
+        // goAsync() must be called before any blocking I/O to prevent ANR.
+        val pendingResult = goAsync()
+
         // Pre-insert a placeholder row so the thread appears in the UI while
         // the download is in progress. Must use the same valid field set as
         // MmsSender.insertMmsRow() — in particular 'v' and 'ct_t' are required;
@@ -73,17 +77,18 @@ class MmsReceiver : BroadcastReceiver() {
         }
         if (rowUri == null) {
             Log.e(TAG, "contentResolver.insert returned null — aborting")
+            pendingResult.finish()
             return
         }
         val msgId = rowUri.lastPathSegment?.toLongOrNull() ?: -1L
         Log.d(TAG, "pre-inserted placeholder row -> $rowUri (msgId=$msgId)")
 
-        // goAsync() extends the BroadcastReceiver deadline so the coroutine can
-        // run the full MMS network request (~30 s) without ANR.
-        val pendingResult = goAsync()
         AppCoroutineScopes.io.launch {
             try {
-                MmsDownloader.download(context, contentLocation, subId, msgId)
+                // Must finish before the ~10s broadcast timeout or the system ANRs us.
+                withTimeoutOrNull(9_000L) {
+                    MmsDownloader.download(context, contentLocation, subId, msgId)
+                }
             } finally {
                 pendingResult.finish()
             }

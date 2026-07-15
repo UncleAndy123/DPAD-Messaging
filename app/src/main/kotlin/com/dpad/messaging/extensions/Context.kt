@@ -1,12 +1,14 @@
 package com.dpad.messaging.extensions
 
-import android.annotation.SuppressLint
+import android.Manifest
 import android.content.ContentUris
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Telephony
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
+import androidx.core.content.ContextCompat
 import com.dpad.messaging.App
 import com.dpad.messaging.helpers.ContactHelper
 import com.dpad.messaging.helpers.MmsHelper
@@ -25,8 +27,10 @@ import com.dpad.messaging.models.Message
  * participant lists.  Requires READ_PHONE_STATE permission; returns empty set if
  * permission is missing or no number is available.
  */
-@SuppressLint("MissingPermission")
 fun Context.getOwnPhoneNumbers(): Set<String> {
+    if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+        return emptySet()
+    }
     val numbers = mutableSetOf<String>()
     try {
         val subMgr = getSystemService(SubscriptionManager::class.java)

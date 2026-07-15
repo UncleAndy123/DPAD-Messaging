@@ -210,13 +210,13 @@ class Prefs private constructor(context: Context) {
         else             -> 1.0f
     }
 
-    var mmsProxyHost: String
-        get() = prefs.getString(KEY_MMS_PROXY_HOST, "") ?: ""
-        set(v) = prefs.edit().putString(KEY_MMS_PROXY_HOST, v.trim()).apply()
+var mmsProxyHost: String
+    get() = prefs.getString(KEY_MMS_PROXY_HOST, "proxy.mobile.att.net") ?: "proxy.mobile.att.net"
+    set(v) = prefs.edit().putString(KEY_MMS_PROXY_HOST, v.trim()).apply()
 
-    var mmsProxyPort: Int
-        get() = prefs.getInt(KEY_MMS_PROXY_PORT, -1)
-        set(v) = prefs.edit().putInt(KEY_MMS_PROXY_PORT, v).apply()
+var mmsProxyPort: Int
+    get() = prefs.getInt(KEY_MMS_PROXY_PORT, 80)
+    set(v) = prefs.edit().putInt(KEY_MMS_PROXY_PORT, v).apply()
 
     /** User declined the "set as default SMS app" prompt — don't ask again. */
     var defaultSmsDismissed: Boolean

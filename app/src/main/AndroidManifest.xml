@@ -32,6 +32,8 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
+
+
     <!-- ─── Scheduling ─── -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
@@ -53,6 +55,8 @@
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
+    <!-- Permissions for Receive app restrictions. -->
+    <uses-permission android:name="android.permission.RECEIVE_APP_RESTRICTIONS" />
 
     <application
         android:name=".App"
@@ -66,6 +70,7 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/Theme.DpadMessaging"
         tools:targetApi="31">
+
 
         <!-- ─── Activities ─── -->
         <activity

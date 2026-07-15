@@ -45,6 +45,7 @@ import com.dpad.messaging.helpers.SendingMode
 import com.dpad.messaging.helpers.SendingRouter
 import com.dpad.messaging.helpers.ThemeManager
 import com.dpad.messaging.helpers.MessageSenders
+import com.dpad.messaging.helpers.SmsWhitelistManager
 import com.dpad.messaging.models.Message
 import com.dpad.messaging.models.RecycleBinMessage
 import com.dpad.messaging.models.ThreadItem
@@ -894,40 +895,60 @@ class ThreadActivity : BaseActivity() {
     // ─── Send ────────────────────────────────────────────────────────────────
 
     private fun sendMessage() {
-        var body       = binding.etMessage.text?.toString()?.trim() ?: ""
-        val attachment = pendingAttachmentUri
-        val scheduledAtMillis = pendingScheduledAtMillis
-        val attachments = LinkedHashSet<Uri>().apply {
-            addAll(pendingAttachmentUris)
-            if (attachment != null) add(attachment)
-        }.toList()
+    var body       = binding.etMessage.text?.toString()?.trim() ?: ""
+    val attachment = pendingAttachmentUri
+    val scheduledAtMillis = pendingScheduledAtMillis
+    val attachments = LinkedHashSet<Uri>().apply {
+        addAll(pendingAttachmentUris)
+        if (attachment != null) add(attachment)
+    }.toList()
 
-        // Collect numbers from chips and append to message
-        val chipNumbers = mutableListOf<String>()
-        for (i in 0 until binding.chipsContainer.childCount) {
-            val chipButton = binding.chipsContainer.getChildAt(i) as? android.widget.Button
-            chipButton?.text?.toString()?.let { chipNumbers.add(it) }
+    // Collect numbers from chips and append to message
+    val chipNumbers = mutableListOf<String>()
+    for (i in 0 until binding.chipsContainer.childCount) {
+        val chipButton = binding.chipsContainer.getChildAt(i) as? android.widget.Button
+        chipButton?.text?.toString()?.let { chipNumbers.add(it) }
+    }
+    if (chipNumbers.isNotEmpty()) {
+        body = if (body.isNotBlank()) {
+            "$body ${chipNumbers.joinToString(" ")}"
+        } else {
+            chipNumbers.joinToString(" ")
         }
-        if (chipNumbers.isNotEmpty()) {
-            body = if (body.isNotBlank()) {
-                "$body ${chipNumbers.joinToString(" ")}"
-            } else {
-                chipNumbers.joinToString(" ")
-            }
-        }
+    }
 
-        if (body.isBlank() && attachments.isEmpty()) return
-        if (phoneNumber.isBlank() && participants.isEmpty()) return
+    if (body.isBlank() && attachments.isEmpty()) return
+    if (phoneNumber.isBlank() && participants.isEmpty()) return
 
-        if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.sendMessage() body='${body.take(20)}' attachments=${attachments.size} participants=$participants isGroup=${participants.size > 1}")
+    // ── MDM outgoing filter ───────────────────────────────────────────────
+    // Run synchronously before clearing the UI. RestrictionsManager is a
+    // synchronous call so no coroutine is needed here. If any recipient is
+    // blocked, show a Toast and return — the composed message stays intact
+    // in the text field so the user doesn't lose what they typed.
+    val blockedRecipients = participants.filter { recipient ->
+        !SmsWhitelistManager.check(this, recipient).allowed
+    }
+    if (blockedRecipients.isNotEmpty()) {
+        Log.i("DPAD_MSG", "ThreadActivity: outgoing message blocked — recipients not permitted: $blockedRecipients")
+        android.widget.Toast.makeText(
+            this,
+            getString(R.string.message_blocked_by_policy),
+            android.widget.Toast.LENGTH_LONG
+        ).show()
+        return  // UI not yet cleared — user keeps their composed message
+    }
+    // ─────────────────────────────────────────────────────────────────────
 
-        binding.etMessage.text?.clear()
-        binding.chipsContainer.removeAllViews()
-        binding.chipsContainerScroll.visibility = View.GONE
-        clearAttachment()
-        pendingScheduledAtMillis = null
-        updateScheduledUi()
-        binding.etMessage.requestFocus()
+    if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.sendMessage() body='${body.take(20)}' attachments=${attachments.size} participants=$participants isGroup=${participants.size > 1}")
+
+    // Clear UI only after the filter has passed
+    binding.etMessage.text?.clear()
+    binding.chipsContainer.removeAllViews()
+    binding.chipsContainerScroll.visibility = View.GONE
+    clearAttachment()
+    pendingScheduledAtMillis = null
+    updateScheduledUi()
+    binding.etMessage.requestFocus()
 
         lifecycleScope.launch(Dispatchers.IO) {
             val hasAttachment = attachments.isNotEmpty()

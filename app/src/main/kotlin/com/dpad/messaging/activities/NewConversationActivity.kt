@@ -128,6 +128,16 @@ class NewConversationActivity : BaseActivity() {
                 binding.lvSuggestions.setSelection(0)
                 return@setOnKeyListener true
             }
+            // D-Pad LEFT from the recipient field → the "+" (contacts picker),
+            // which now sits to the LEFT of the field. An EditText swallows LEFT to
+            // move the cursor and only releases focus at position 0, so intercept it
+            // here to reliably reach "+" even when there's text after the caret.
+            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT &&
+                binding.etRecipient.selectionStart == 0 &&
+                binding.etRecipient.selectionEnd == 0) {
+                binding.btnAddRecipient.requestFocus()
+                return@setOnKeyListener true
+            }
             false
         }
 
@@ -184,7 +194,7 @@ class NewConversationActivity : BaseActivity() {
 
     private fun updateSendButton() {
         val hasRecipients = selectedRecipients.isNotEmpty() ||
-            parseRecipients(binding.etRecipient.text?.toString().orEmpty()).isNotEmpty()
+                parseRecipients(binding.etRecipient.text?.toString().orEmpty()).isNotEmpty()
         val accentColor = ThemeManager.accentColor(this)
         binding.btnSend.isEnabled = hasRecipients
         binding.btnSend.setColorFilter(
@@ -324,7 +334,7 @@ class NewConversationActivity : BaseActivity() {
         if (selectedRecipients.isEmpty()) {
             binding.recipientChipsScroll.visibility = View.GONE
             binding.etRecipient.nextFocusDownId = R.id.btn_send
-            binding.btnAddRecipient.nextFocusLeftId = R.id.et_recipient
+            binding.btnAddRecipient.nextFocusRightId = R.id.et_recipient
             binding.btnAddRecipient.nextFocusDownId = R.id.btn_send
             binding.btnSend.nextFocusUpId = R.id.et_recipient
             return

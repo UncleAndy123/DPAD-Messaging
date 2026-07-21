@@ -5,6 +5,8 @@ import android.app.role.RoleManager
 import android.content.res.ColorStateList
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.widget.Toast
 import android.os.Build
 import android.os.Bundle
 import android.provider.Telephony
@@ -95,6 +97,7 @@ class MainActivity : BaseActivity() {
         setupToolbar()
         setupSearch()
         checkPermissions()
+        handleSendIntent(intent) //Added to handle intents from other apps.
     }
 
     override fun onResume() {
@@ -104,7 +107,11 @@ class MainActivity : BaseActivity() {
         refreshConversationList()
         checkDefaultSmsApp()
     }
-
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleSendIntent(intent)
+    }
     private fun refreshConversationList() {
         loadConversations()
     }
@@ -324,7 +331,50 @@ class MainActivity : BaseActivity() {
         }
         startActivity(intent)
     }
+    /**
+     * Handles external smsto:/sms:/mmsto:/mms: intents (e.g. "Message" from Contacts,
+     * the dialer, or a tel/sms link in a browser) by resolving the recipient's thread
+     * and opening ThreadActivity directly. No-op for normal launcher/shortcut launches.
+     */
+    private fun handleSendIntent(intent: Intent?) {
+        val action = intent?.action ?: return
+        if (action != Intent.ACTION_SENDTO && action != Intent.ACTION_VIEW) return
 
+        val uri = intent.data ?: return
+        if (uri.scheme?.lowercase() !in listOf("smsto", "sms", "mmsto", "mms")) return
+
+        // e.g. "smsto:%2B15551234567?body=hi" -> "+15551234567"
+        val raw = Uri.decode(uri.schemeSpecificPart ?: return)
+            .removePrefix("//")          // some ROMs prepend slashes
+            .substringBefore('?')        // strip ?body=
+            .trim()
+        val recipients = raw.split(',', ';').map { it.trim() }.filter { it.isNotBlank() }
+        if (recipients.isEmpty()) return
+
+        lifecycleScope.launch {
+            val threadId = withContext(Dispatchers.IO) {
+                runCatching {
+                    Telephony.Threads.getOrCreateThreadId(this@MainActivity, recipients.toSet())
+                }.getOrNull()
+            }
+            if (threadId == null) {
+                Toast.makeText(this@MainActivity, R.string.error_sending_message, Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val title = recipients.joinToString(", ") {
+                App.get().contactHelper.getDisplayName(it)
+            }
+            pendingFocusThreadId = threadId
+            startActivity(Intent(this@MainActivity, ThreadActivity::class.java).apply {
+                putExtra(ThreadActivity.EXTRA_THREAD_ID, threadId)
+                putExtra(ThreadActivity.EXTRA_THREAD_TITLE, title)
+                putExtra(ThreadActivity.EXTRA_PHONE_NUMBER, recipients.first())
+                if (recipients.size > 1) {
+                    putExtra(ThreadActivity.EXTRA_PARTICIPANTS, recipients.joinToString(","))
+                }
+            })
+        }
+    }
     private fun currentFocusedThreadId(): Long? {
         val focusedChild = binding.rvConversations.focusedChild ?: return null
         val holder = binding.rvConversations.findContainingViewHolder(focusedChild) ?: return null

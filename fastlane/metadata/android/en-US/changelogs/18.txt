@@ -1,0 +1,4 @@
+- Performance: Faster conversation and thread loading with in-memory caching
+- Memory: Reduced RAM usage for MMS images and scrolling lists
+- Optimization: Lower Telephony provider overhead and fewer repeated MMS part queries
+- Stability: Cancel stale background loads to avoid UI hitching on low-end devices

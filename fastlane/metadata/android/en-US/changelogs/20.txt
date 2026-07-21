@@ -1,0 +1,7 @@
+- Fix: Incoming vCards now show contact name instead of raw MIME type
+- Fix: Notifications clear immediately when opening/reading a thread in-app
+- Fix: Auto-scroll to bottom now reliably reaches the latest message
+- Fix: Message loading on phones with stricter Telephony providers
+- Fix: DPAD navigation at list edges works with partially visible rows
+- Performance: Faster conversation/thread loading with in-memory caching
+- Memory: Reduced RAM usage for MMS images and scrolling lists

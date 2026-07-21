@@ -1,0 +1,4 @@
+- Fix: Message loading on phones with stricter Telephony providers (no LIMIT in sort order, missing column fallback)
+- Fix: Scrolling no longer artificially stops at 150/200 item caps
+- Fix: DPAD navigation at list edges now works with partially visible rows
+- Stability: Safer projection query fallback and defensive column access

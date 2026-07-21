@@ -228,4 +228,7 @@
     <string name="restore_success">Restore completed:</string>
     <string name="restore_failed">Restore failed:</string>
     <string name="restore_invalid">Backup file is empty</string>
+    <string name="backup_warning_title">Sensitive Data Warning</string>
+    <string name="backup_warning_message">The backup file contains ALL your messages, contact numbers, blocked lists, and app settings in encrypted form. The file can only be restored on this device, not on another device. Keep the file in a safe place.</string>
+    <string name="backup_confirm">Create Backup</string>
 </resources>

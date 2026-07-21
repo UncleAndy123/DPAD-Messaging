@@ -11,7 +11,6 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.bumptech.glide.request.target.Target
 import com.dpad.messaging.R
 import com.dpad.messaging.databinding.ItemConversationBinding
 import com.dpad.messaging.helpers.Prefs
@@ -28,6 +27,22 @@ class ConversationsAdapter(
     private val onConversationMenuClick: (View, Conversation) -> Unit
 ) : ListAdapter<Conversation, ConversationsAdapter.ConversationViewHolder>(DIFF_CALLBACK) {
 
+    companion object {
+        private val DIFF_CALLBACK = object : DiffUtil.ItemCallback<Conversation>() {
+            override fun areItemsTheSame(old: Conversation, new: Conversation) =
+                old.threadId == new.threadId
+
+            override fun areContentsTheSame(old: Conversation, new: Conversation) =
+                old == new
+        }
+
+        private val timeFormat12h by lazy { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+        private val timeFormat24h by lazy { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+        private val weekdayFormat by lazy { SimpleDateFormat("EEE", Locale.getDefault()) }
+        private val shortDateMdy by lazy { SimpleDateFormat("MM/dd/yy", Locale.getDefault()) }
+        private val shortDateDmy by lazy { SimpleDateFormat("dd/MM/yy", Locale.getDefault()) }
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ConversationViewHolder {
         val binding = ItemConversationBinding.inflate(
             LayoutInflater.from(parent.context), parent, false
@@ -39,8 +54,13 @@ class ConversationsAdapter(
         holder.bind(getItem(position))
     }
 
+    override fun onViewRecycled(holder: ConversationViewHolder) {
+        Glide.with(holder.itemView.context).clear(holder.binding.ivAvatar)
+        super.onViewRecycled(holder)
+    }
+
     inner class ConversationViewHolder(
-        private val binding: ItemConversationBinding
+        val binding: ItemConversationBinding
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(conversation: Conversation) {
@@ -108,7 +128,6 @@ class ConversationsAdapter(
                 binding.tvAvatarLetter.visibility = View.GONE
                 Glide.with(binding.ivAvatar.context)
                     .load(Uri.parse(conversation.photoUri))
-                    .override(Target.SIZE_ORIGINAL, Target.SIZE_ORIGINAL)
                     .circleCrop()
                     .placeholder(R.drawable.ic_person)
                     .into(binding.ivAvatar)
@@ -136,14 +155,14 @@ class ConversationsAdapter(
             val prefs = Prefs.get()
             return when {
                 isSameDay(now, msg) -> {
-                    val pattern = if (prefs.timeFormat == Prefs.TIME_FORMAT_24H) "HH:mm" else "h:mm a"
-                    SimpleDateFormat(pattern, Locale.getDefault()).format(Date(timestamp))
+                    val fmt = if (prefs.timeFormat == Prefs.TIME_FORMAT_24H) timeFormat24h else timeFormat12h
+                    fmt.format(Date(timestamp))
                 }
                 diffDays(now, msg) < 7 ->
-                    SimpleDateFormat("EEE", Locale.getDefault()).format(Date(timestamp))
+                    weekdayFormat.format(Date(timestamp))
                 else -> {
-                    val pattern = if (prefs.dateFormat == Prefs.DATE_FORMAT_DMY) "dd/MM/yy" else "MM/dd/yy"
-                    SimpleDateFormat(pattern, Locale.getDefault()).format(Date(timestamp))
+                    val fmt = if (prefs.dateFormat == Prefs.DATE_FORMAT_DMY) shortDateDmy else shortDateMdy
+                    fmt.format(Date(timestamp))
                 }
             }
         }
@@ -156,12 +175,4 @@ class ConversationsAdapter(
             ((now.timeInMillis - msg.timeInMillis) / (24 * 60 * 60 * 1000L)).toInt()
     }
 
-    companion object {
-        private val DIFF_CALLBACK = object : DiffUtil.ItemCallback<Conversation>() {
-            override fun areItemsTheSame(old: Conversation, new: Conversation) =
-                old.threadId == new.threadId
-            override fun areContentsTheSame(old: Conversation, new: Conversation) =
-                old == new
-        }
-    }
 }

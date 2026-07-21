@@ -37,7 +37,9 @@ import com.dpad.messaging.databinding.ActivityThreadBinding
 import com.dpad.messaging.events.RefreshMessages
 import com.dpad.messaging.extensions.getMessagesForThread
 import com.dpad.messaging.extensions.markThreadAsReadInTelephony
+import com.dpad.messaging.helpers.MessageCache
 import com.dpad.messaging.helpers.MmsSender
+import com.dpad.messaging.helpers.NotificationHelper
 import com.dpad.messaging.helpers.Prefs
 import com.dpad.messaging.helpers.SendingMode
 import com.dpad.messaging.helpers.SendingRouter
@@ -183,12 +185,14 @@ class ThreadActivity : BaseActivity() {
         applyPrefillAttachmentFromIntent(intent)
         loadSimInfo()
         loadMessages()
+        markThreadRead()
     }
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         setIntent(intent)
         extractThreadExtras(intent)
+        hasInitializedList = false
         applyPrefillAttachmentFromIntent(intent)
         setupToolbar()
         loadMessages()
@@ -199,7 +203,7 @@ class ThreadActivity : BaseActivity() {
         super.onResume()
         EventBus.getDefault().register(this)
         applyAccent()
-        loadMessages()   // Bug #1 fix: refresh thread when returning from background
+        markThreadRead()
     }
 
     override fun onPause() {
@@ -480,7 +484,15 @@ class ThreadActivity : BaseActivity() {
         pendingAttachmentUris.clear()
         binding.attachmentPreviewBar.visibility = View.GONE
         Glide.with(this).clear(binding.ivAttachmentPreview)
+        deleteCameraTempFile()
         updateSendButtonState()
+    }
+
+    private fun deleteCameraTempFile() {
+        val cameraDir = File(cacheDir, "camera_capture")
+        if (cameraDir.isDirectory) {
+            cameraDir.listFiles()?.forEach { it.delete() }
+        }
     }
 
     private fun applyPrefillAttachmentFromIntent(intent: Intent?) {
@@ -772,22 +784,37 @@ class ThreadActivity : BaseActivity() {
 
     private fun loadMessages() {
         if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.loadMessages() called for threadId=$threadId")
+
+        // Show cached data immediately for instant warm loads
+        val cached = MessageCache.get(threadId)
+        if (cached != null) {
+            if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.loadMessages() cache hit: ${cached.size} messages")
+            displayMessages(cached, fromCache = true)
+        }
+
+        // Always refresh from the real source of truth (Telephony ContentProvider)
         lifecycleScope.launch {
             val messages = withContext(Dispatchers.IO) {
                 getMessagesForThread(threadId, App.get().contactHelper)
             }
             if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.loadMessages() got ${messages.size} messages for threadId=$threadId")
-            displayMessages(messages)
+            MessageCache.put(threadId, messages)
+            displayMessages(messages, fromCache = false)
         }
     }
 
-    private fun displayMessages(messages: List<Message>) {
+    private fun displayMessages(messages: List<Message>, fromCache: Boolean) {
         val items = ThreadItem.fromMessages(messages)
         threadAdapter.submitList(items) {
             // Keep initial auto-scroll behavior, but avoid stealing D-pad focus on every refresh
             if (!hasInitializedList) {
                 binding.rvMessages.scrollToPosition(threadAdapter.itemCount - 1)
-                hasInitializedList = true
+                binding.rvMessages.post {
+                    binding.rvMessages.scrollToPosition(threadAdapter.itemCount - 1)
+                }
+                if (!fromCache) {
+                    hasInitializedList = true
+                }
             }
         }
     }
@@ -834,6 +861,9 @@ class ThreadActivity : BaseActivity() {
     }
 
     private fun markThreadRead() {
+        if (threadId <= 0L) return
+
+        NotificationHelper.cancelNotification(this, threadId.toInt())
         lifecycleScope.launch(Dispatchers.IO) {
             App.get().database.messagesDao().markThreadRead(threadId)
             App.get().database.conversationsDao().markAsRead(threadId)
@@ -873,60 +903,72 @@ class ThreadActivity : BaseActivity() {
     // ─── Send ────────────────────────────────────────────────────────────────
 
     private fun sendMessage() {
-    var body       = binding.etMessage.text?.toString()?.trim() ?: ""
-    val attachment = pendingAttachmentUri
-    val scheduledAtMillis = pendingScheduledAtMillis
-    val attachments = LinkedHashSet<Uri>().apply {
-        addAll(pendingAttachmentUris)
-        if (attachment != null) add(attachment)
-    }.toList()
+        // Disable send button to prevent double-tap
+        binding.btnSend.isEnabled = false
 
-    // Collect numbers from chips and append to message
-    val chipNumbers = mutableListOf<String>()
-    for (i in 0 until binding.chipsContainer.childCount) {
-        val chipButton = binding.chipsContainer.getChildAt(i) as? android.widget.Button
-        chipButton?.text?.toString()?.let { chipNumbers.add(it) }
-    }
-    if (chipNumbers.isNotEmpty()) {
-        body = if (body.isNotBlank()) {
-            "$body ${chipNumbers.joinToString(" ")}"
-        } else {
-            chipNumbers.joinToString(" ")
+        var body       = binding.etMessage.text?.toString()?.trim() ?: ""
+        val attachment = pendingAttachmentUri
+        val scheduledAtMillis = pendingScheduledAtMillis
+        val attachments = LinkedHashSet<Uri>().apply {
+            addAll(pendingAttachmentUris)
+            if (attachment != null) add(attachment)
+        }.toList()
+
+        // Collect numbers from chips and append to message
+        val chipNumbers = mutableListOf<String>()
+        for (i in 0 until binding.chipsContainer.childCount) {
+            val chipButton = binding.chipsContainer.getChildAt(i) as? android.widget.Button
+            chipButton?.text?.toString()?.let { chipNumbers.add(it) }
         }
-    }
+        if (chipNumbers.isNotEmpty()) {
+            body = if (body.isNotBlank()) {
+                "$body ${chipNumbers.joinToString(" ")}"
+            } else {
+                chipNumbers.joinToString(" ")
+            }
+        }
 
-    if (body.isBlank() && attachments.isEmpty()) return
-    if (phoneNumber.isBlank() && participants.isEmpty()) return
+        if (body.isBlank() && attachments.isEmpty()) {
+            binding.btnSend.isEnabled = true
+            return
+        }
+        if (phoneNumber.isBlank() && participants.isEmpty()) {
+            binding.btnSend.isEnabled = true
+            return
+        }
 
-    // ── MDM outgoing filter ───────────────────────────────────────────────
-    // Run synchronously before clearing the UI. RestrictionsManager is a
-    // synchronous call so no coroutine is needed here. If any recipient is
-    // blocked, show a Toast and return — the composed message stays intact
-    // in the text field so the user doesn't lose what they typed.
-    val blockedRecipients = participants.filter { recipient ->
-        !SmsWhitelistManager.check(this, recipient).allowed
-    }
-    if (blockedRecipients.isNotEmpty()) {
-        Log.i("DPAD_MSG", "ThreadActivity: outgoing message blocked — recipients not permitted: $blockedRecipients")
-        android.widget.Toast.makeText(
-            this,
-            getString(R.string.message_blocked_by_policy),
-            android.widget.Toast.LENGTH_LONG
-        ).show()
-        return  // UI not yet cleared — user keeps their composed message
-    }
-    // ─────────────────────────────────────────────────────────────────────
+        // ── MDM outgoing filter ───────────────────────────────────────────────
+        // Check phoneNumber (1-on-1) AND participants (group), so direct messages
+        // aren't bypassed. Run synchronously before clearing the UI.
+        val recipientsToCheck = buildList {
+            if (phoneNumber.isNotBlank()) add(phoneNumber)
+            addAll(participants)
+        }.distinct()
+        val blockedRecipients = recipientsToCheck.filter { recipient ->
+            !SmsWhitelistManager.check(this, recipient).allowed
+        }
+        if (blockedRecipients.isNotEmpty()) {
+            Log.i("DPAD_MSG", "ThreadActivity: outgoing message blocked — recipients not permitted: $blockedRecipients")
+            android.widget.Toast.makeText(
+                this,
+                getString(R.string.message_blocked_by_policy),
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            binding.btnSend.isEnabled = true
+            return
+        }
+        // ─────────────────────────────────────────────────────────────────────
 
-    if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.sendMessage() body='${body.take(20)}' attachments=${attachments.size} participants=$participants isGroup=${participants.size > 1}")
+        if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.sendMessage() body='${body.take(20)}' attachments=${attachments.size} participants=$participants isGroup=${participants.size > 1}")
 
-    // Clear UI only after the filter has passed
-    binding.etMessage.text?.clear()
-    binding.chipsContainer.removeAllViews()
-    binding.chipsContainerScroll.visibility = View.GONE
-    clearAttachment()
-    pendingScheduledAtMillis = null
-    updateScheduledUi()
-    binding.etMessage.requestFocus()
+        // Clear UI only after the filter has passed
+        binding.etMessage.text?.clear()
+        binding.chipsContainer.removeAllViews()
+        binding.chipsContainerScroll.visibility = View.GONE
+        clearAttachment()
+        pendingScheduledAtMillis = null
+        updateScheduledUi()
+        binding.etMessage.requestFocus()
 
         lifecycleScope.launch(Dispatchers.IO) {
             val hasAttachment = attachments.isNotEmpty()
@@ -1033,6 +1075,7 @@ class ThreadActivity : BaseActivity() {
                     }
                 }
             }
+            deleteCameraTempFile()
             withContext(Dispatchers.Main) { loadMessages() }
         }
     }
@@ -1096,12 +1139,35 @@ class ThreadActivity : BaseActivity() {
     }
 
     /**
-     * Retry a failed message: hard-delete the FAILED row from Telephony CP, then
-     * re-send via SmsSender (which will insert a fresh OUTBOX row).
+     * Retry a failed message. Sends the new OUTBOX row first, then deletes the
+     * old FAILED row — never leaving the message invisible if re-send fails.
      */
     private fun retryMessage(message: Message) {
+        // ── MDM outgoing filter (same check as sendMessage()) ────────────────
+        val recipientsToCheck = buildList {
+            if (phoneNumber.isNotBlank()) add(phoneNumber)
+            addAll(participants)
+        }.distinct()
+        val blockedRecipients = recipientsToCheck.filter { recipient ->
+            !SmsWhitelistManager.check(this, recipient).allowed
+        }
+        if (blockedRecipients.isNotEmpty()) {
+            Log.i("DPAD_MSG", "ThreadActivity.retryMessage: blocked — recipients not permitted: $blockedRecipients")
+            android.widget.Toast.makeText(this, R.string.message_blocked_by_policy, android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         lifecycleScope.launch(Dispatchers.IO) {
-            // Remove the stale FAILED row
+            // Re-send first — creates a fresh OUTBOX row in the CP
+            MessageSenders.unified.sendSms(
+                context        = this@ThreadActivity,
+                phoneNumber    = phoneNumber,
+                body           = message.body,
+                threadId       = threadId,
+                subscriptionId = message.subscriptionId
+            )
+            // Only now delete the stale FAILED row (new one already in provider)
             try {
                 contentResolver.delete(
                     ContentUris.withAppendedId(Telephony.Sms.CONTENT_URI, message.id),
@@ -1110,14 +1176,6 @@ class ThreadActivity : BaseActivity() {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-            // Re-send
-            MessageSenders.unified.sendSms(
-                context        = this@ThreadActivity,
-                phoneNumber    = phoneNumber,
-                body           = message.body,
-                threadId       = threadId,
-                subscriptionId = message.subscriptionId
-            )
             withContext(Dispatchers.Main) { loadMessages() }
         }
     }

@@ -261,9 +261,7 @@ object LibraryUnifiedMessageSender : UnifiedMessageSender {
             transaction.sendNewMessage(message)
         } catch (e: Exception) {
             Log.e(TAG, "LibraryUnifiedMessageSender: SMS library send failed, falling back to legacy", e)
-            // Note: this fallback also goes through the legacy sender, which re-applies
-            // the filter check — but at this point we've already passed the check above,
-            // so the fallback will pass through unchanged. Acceptable double-check.
+            // SmsSender.send() contains the authoritative MDM filter check.
             SmsSender.send(
                 context = context,
                 phoneNumber = phoneNumber,

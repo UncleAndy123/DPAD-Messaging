@@ -78,17 +78,24 @@ class SettingsActivity : BaseActivity() {
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
         if (uri != null) {
-            lifecycleScope.launch {
-                try {
-                    val json = withContext(Dispatchers.IO) { BackupManager.backup(this@SettingsActivity) }
-                    withContext(Dispatchers.IO) {
-                        contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+            AlertDialog.Builder(this)
+                .setTitle(R.string.backup_warning_title)
+                .setMessage(R.string.backup_warning_message)
+                .setPositiveButton(R.string.backup_confirm) { _, _ ->
+                    lifecycleScope.launch {
+                        try {
+                            val json = withContext(Dispatchers.IO) { BackupManager.backup(this@SettingsActivity) }
+                            withContext(Dispatchers.IO) {
+                                contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+                            }
+                            Toast.makeText(this@SettingsActivity, R.string.backup_success, Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            Toast.makeText(this@SettingsActivity, "${getString(R.string.backup_failed)} ${e.message}", Toast.LENGTH_LONG).show()
+                        }
                     }
-                    Toast.makeText(this@SettingsActivity, R.string.backup_success, Toast.LENGTH_SHORT).show()
-                } catch (e: Exception) {
-                    Toast.makeText(this@SettingsActivity, "${getString(R.string.backup_failed)} ${e.message}", Toast.LENGTH_LONG).show()
                 }
-            }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
         }
     }
 

@@ -133,19 +133,14 @@ class MmsSentReceiver : BroadcastReceiver() {
     private fun updateLatestOutboxForThread(context: Context, threadId: Long, msgBox: Int) {
         val mmsUri = Uri.parse("content://mms")
         try {
-            context.contentResolver.query(
+            // Update ALL outbox rows for the thread so multi-attachment sends
+            // don't leave extra rows stuck in msg_box=4.
+            context.contentResolver.update(
                 mmsUri,
-                arrayOf("_id"),
+                ContentValues().apply { put("msg_box", msgBox) },
                 "thread_id = ? AND msg_box = 4",
-                arrayOf(threadId.toString()),
-                "date DESC"
-            )?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val msgId = cursor.getLong(0)
-                    val uri = Uri.parse("content://mms/$msgId")
-                    updateMsgBoxByUri(context, uri, msgBox)
-                }
-            }
+                arrayOf(threadId.toString())
+            )
         } catch (e: Exception) {
             Log.w("DPAD_MSG", "MmsSentReceiver: failed fallback update for threadId=$threadId", e)
         }

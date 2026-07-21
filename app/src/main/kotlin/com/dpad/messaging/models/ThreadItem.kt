@@ -26,6 +26,9 @@ sealed class ThreadItem {
     ) : ThreadItem()
 
     companion object {
+        // Reusable calendar to avoid per-call allocations in dayKey()
+        private val calendar = java.util.Calendar.getInstance()
+
         /** Build a flat list of ThreadItems from raw messages, inserting date headers. */
         fun fromMessages(messages: List<Message>): List<ThreadItem> {
             if (messages.isEmpty()) return emptyList()
@@ -52,12 +55,12 @@ sealed class ThreadItem {
         }
 
         private fun dayKey(timestamp: Long): Long {
-            val cal = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
-            cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-            cal.set(java.util.Calendar.MINUTE, 0)
-            cal.set(java.util.Calendar.SECOND, 0)
-            cal.set(java.util.Calendar.MILLISECOND, 0)
-            return cal.timeInMillis
+            calendar.timeInMillis = timestamp
+            calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+            calendar.set(java.util.Calendar.MINUTE, 0)
+            calendar.set(java.util.Calendar.SECOND, 0)
+            calendar.set(java.util.Calendar.MILLISECOND, 0)
+            return calendar.timeInMillis
         }
     }
 }

@@ -26,6 +26,7 @@ import com.dpad.messaging.adapters.ConversationsAdapter
 import com.dpad.messaging.databinding.ActivityMainBinding
 import com.dpad.messaging.events.RefreshConversations
 import com.dpad.messaging.extensions.getConversationsFromTelephony
+import com.dpad.messaging.helpers.ConversationCache
 import com.dpad.messaging.extensions.markThreadAsReadInTelephony
 import com.dpad.messaging.helpers.Prefs
 import com.dpad.messaging.helpers.ThemeManager
@@ -47,6 +48,9 @@ class MainActivity : BaseActivity() {
 
     /** Debounce job for search filtering — cancels and reschedules on each keystroke */
     private var searchDebounceJob: Job? = null
+
+    /** Active load job for conversations; cancelled when a newer load starts. */
+    private var loadConversationsJob: Job? = null
 
     /** Thread to focus after list refresh (used when returning from a conversation). */
     private var pendingFocusThreadId: Long? = null
@@ -107,6 +111,7 @@ class MainActivity : BaseActivity() {
 
     override fun onPause() {
         pendingFocusThreadId = currentFocusedThreadId() ?: pendingFocusThreadId
+        loadConversationsJob?.cancel()
         EventBus.getDefault().unregister(this)
         super.onPause()
     }
@@ -211,15 +216,27 @@ class MainActivity : BaseActivity() {
 
     // ─── Data loading ───────────────────────────────────────────────────────
 
-    private fun loadConversations() {
+    private fun loadConversations(forceRefresh: Boolean = false) {
         if (!hasRequiredPermissions()) return
 
-        lifecycleScope.launch {
-            val conversations = withContext(Dispatchers.IO) {
-                val pinnedIds = Prefs.get().getPinnedThreadIds()
-                val mutedIds  = Prefs.get().getMutedThreadIds()
-                getConversationsFromTelephony(App.get().contactHelper, pinnedIds, mutedThreadIds = mutedIds)
+        if (!forceRefresh) {
+            ConversationCache.get()?.let { cached ->
+                displayConversations(cached)
             }
+        }
+
+        loadConversationsJob?.cancel()
+        loadConversationsJob = lifecycleScope.launch {
+            val pinnedIds = Prefs.get().getPinnedThreadIds()
+            val mutedIds = Prefs.get().getMutedThreadIds()
+            val conversations = withContext(Dispatchers.IO) {
+                getConversationsFromTelephony(
+                    App.get().contactHelper,
+                    pinnedIds,
+                    mutedThreadIds = mutedIds
+                )
+            }
+            ConversationCache.put(conversations)
             displayConversations(conversations)
         }
     }
@@ -229,7 +246,6 @@ class MainActivity : BaseActivity() {
             binding.tvEmpty.visibility = if (conversations.isEmpty()) View.VISIBLE else View.GONE
 
             if (isSearchVisible) {
-                // While searching, keep focus in the search box.
                 binding.etSearch.requestFocus()
                 return@submitList
             }
@@ -244,18 +260,25 @@ class MainActivity : BaseActivity() {
                 ?.let { threadId -> conversations.indexOfFirst { it.threadId == threadId } }
                 ?.takeIf { it >= 0 }
 
-            binding.rvConversations.post {
-                when {
-                    targetPosition != null -> binding.rvConversations.focusItem(targetPosition)
-                    binding.rvConversations.focusedChild == null &&
-                        !binding.btnNewConversation.isFocused &&
-                        !binding.btnSearch.isFocused &&
-                        !binding.btnOverflow.isFocused -> {
-                        binding.rvConversations.focusFirstItem()
-                    }
+            // If RecyclerView already has a focused child, the user navigated during the
+            // async load — don't override with focus restoration.
+            if (binding.rvConversations.focusedChild != null) {
+                if (targetPosition != null) {
+                    binding.rvConversations.scrollToPosition(targetPosition)
                 }
                 pendingFocusThreadId = null
+                return@submitList
             }
+
+            when {
+                targetPosition != null -> binding.rvConversations.focusItem(targetPosition)
+                !binding.btnNewConversation.isFocused &&
+                    !binding.btnSearch.isFocused &&
+                    !binding.btnOverflow.isFocused -> {
+                    binding.rvConversations.focusFirstItem()
+                }
+            }
+            pendingFocusThreadId = null
         }
     }
 
@@ -267,9 +290,15 @@ class MainActivity : BaseActivity() {
             return
         }
         lifecycleScope.launch {
-            val all = withContext(Dispatchers.IO) {
-                getConversationsFromTelephony(App.get().contactHelper)
-            }
+            val pinnedIds = Prefs.get().getPinnedThreadIds()
+            val mutedIds = Prefs.get().getMutedThreadIds()
+            val all = ConversationCache.get() ?: withContext(Dispatchers.IO) {
+                getConversationsFromTelephony(
+                    App.get().contactHelper,
+                    pinnedIds,
+                    mutedThreadIds = mutedIds
+                )
+            }.also { ConversationCache.put(it) }
             val lower = query.lowercase()
             val filtered = all.filter {
                 it.title.lowercase().contains(lower) ||
@@ -518,7 +547,7 @@ class MainActivity : BaseActivity() {
     @Subscribe(threadMode = ThreadMode.MAIN)
     @Suppress("UNUSED_PARAMETER")
     fun onRefreshConversations(event: RefreshConversations) {
-        loadConversations()
+        loadConversations(forceRefresh = true)
     }
 
     // ─── Key handling ───────────────────────────────────────────────────────

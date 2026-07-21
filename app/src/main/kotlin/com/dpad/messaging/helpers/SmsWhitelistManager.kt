@@ -3,7 +3,6 @@ package com.dpad.messaging.helpers
 
 import android.content.Context
 import android.content.RestrictionsManager
-import android.util.Log
 
 /**
  * Reads SMS/MMS whitelist and blocklist from MDM-pushed Application Restrictions.
@@ -19,7 +18,6 @@ import android.util.Log
  * Off: no filtering (default).
  */
 object SmsWhitelistManager {
-    private const val TAG = "DPAD_MSG"
     const val KEY_ALLOWED = "sms_allowed_numbers"
     const val KEY_BLOCKED = "sms_blocked_numbers"
     const val KEY_MODE = "sms_filter_mode"
@@ -29,17 +27,9 @@ object SmsWhitelistManager {
     data class FilterResult(val allowed: Boolean, val reason: String)
 
     fun check(context: Context, address: String): FilterResult {
-        val rm = context.getSystemService(Context.RESTRICTIONS_SERVICE) as RestrictionsManager
-        val bundle = rm.applicationRestrictions
-
-        // Temporary diagnostic — remove once filtering is confirmed working.
-        Log.d(
-            "DPAD_MSG",
-            "SmsWhitelistManager.check() address=$address mode=${bundle.getString(KEY_MODE)} allowed=${
-                bundle.getString(KEY_ALLOWED)
-            } blocked=${bundle.getString(KEY_BLOCKED)}"
-        )
-
+        val rm = context.getSystemService(Context.RESTRICTIONS_SERVICE) as? RestrictionsManager
+            ?: return FilterResult(true, "no restrictions manager")
+        val bundle = rm.applicationRestrictions ?: return FilterResult(true, "no restrictions bundle")
         val mode = when (bundle.getString(KEY_MODE, "off")?.lowercase()) {
             "whitelist" -> FilterMode.WHITELIST
             "blocklist" -> FilterMode.BLOCKLIST
@@ -67,7 +57,7 @@ object SmsWhitelistManager {
                     FilterResult(true, "not in blocklist")
             }
 
-            FilterMode.OFF -> FilterResult(true, "filtering off")
+            FilterMode.OFF -> error("unreachable") // handled by early return above
         }
     }
 

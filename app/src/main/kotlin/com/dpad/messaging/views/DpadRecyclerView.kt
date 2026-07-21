@@ -36,9 +36,9 @@ class DpadRecyclerView @JvmOverloads constructor(
         if (lm != null) {
             when (direction) {
                 FOCUS_UP -> {
-                    val firstVisible = lm.findFirstCompletelyVisibleItemPosition()
+                    val firstVisible = lm.findFirstVisibleItemPosition()
                     val focusedPos = getFocusedAdapterPosition(focused)
-                    if (firstVisible == 0 && (focusedPos == 0 || focusedPos == RecyclerView.NO_POSITION)) {
+                    if (firstVisible <= 0 && (focusedPos <= 0 || focusedPos == RecyclerView.NO_POSITION)) {
                         onTopEdgeReached?.invoke()
                         // Let the framework find the next focusable view above this RecyclerView
                         return focusSearchParent(direction)
@@ -46,9 +46,9 @@ class DpadRecyclerView @JvmOverloads constructor(
                 }
                 FOCUS_DOWN -> {
                     val itemCount = adapter?.itemCount ?: 0
-                    val lastVisible = lm.findLastCompletelyVisibleItemPosition()
+                    val lastVisible = lm.findLastVisibleItemPosition()
                     val focusedPos = getFocusedAdapterPosition(focused)
-                    if (itemCount > 0 && lastVisible == itemCount - 1 && focusedPos == itemCount - 1) {
+                    if (itemCount > 0 && lastVisible >= itemCount - 1 && focusedPos >= itemCount - 1) {
                         onBottomEdgeReached?.invoke()
                         return focusSearchParent(direction)
                     }
@@ -81,9 +81,10 @@ class DpadRecyclerView @JvmOverloads constructor(
      */
     fun focusFirstItem() {
         post {
+            if (focusedChild != null) return@post
             val lm = layoutManager as? LinearLayoutManager ?: return@post
-            val firstPos = lm.findFirstCompletelyVisibleItemPosition()
-                .takeIf { it != NO_ID.toInt() } ?: 0
+            val firstPos = lm.findFirstVisibleItemPosition()
+                .takeIf { it != NO_POSITION } ?: 0
             findViewHolderForAdapterPosition(firstPos)?.itemView?.requestFocus()
         }
     }
@@ -94,23 +95,29 @@ class DpadRecyclerView @JvmOverloads constructor(
      */
     fun focusLastItem() {
         post {
+            if (focusedChild != null) return@post
             val itemCount = adapter?.itemCount ?: return@post
             if (itemCount == 0) return@post
             scrollToPosition(itemCount - 1)
             post {
-                findViewHolderForAdapterPosition(itemCount - 1)?.itemView?.requestFocus()
+                if (focusedChild == null) {
+                    findViewHolderForAdapterPosition(itemCount - 1)?.itemView?.requestFocus()
+                }
             }
         }
     }
 
     /**
      * Scrolls to and focuses the item at [position].
+     * Skips focus restoration if the user has already navigated during the layout delay.
      */
     fun focusItem(position: Int) {
         if (position < 0) return
         scrollToPosition(position)
         post {
-            findViewHolderForAdapterPosition(position)?.itemView?.requestFocus()
+            if (focusedChild == null) {
+                findViewHolderForAdapterPosition(position)?.itemView?.requestFocus()
+            }
         }
     }
 

@@ -1,20 +1,42 @@
 package com.dpad.messaging.helpers
 
 import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import com.dpad.messaging.App
 import com.dpad.messaging.models.BackupData
 import com.dpad.messaging.models.BackupPreferences
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import android.util.Base64
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 
 object BackupManager {
 
+    private const val KEYSTORE_ALIAS = "dpad_backup_key"
+    private const val ANDROID_KEYSTORE = "AndroidKeyStore"
+    private const val GCM_TAG_LENGTH = 128
+    private const val GCM_IV_LENGTH = 12
+
+    @OptIn(ExperimentalSerializationApi::class)
     private val json = Json {
         prettyPrint = true
         ignoreUnknownKeys = false
         explicitNulls = false
     }
 
+    /**
+     * Exports all message data as an encrypted JSON string.
+     * The encryption key is stored in Android KeyStore and is device-backed.
+     * The returned string is base64(IV + ciphertext) and can be safely written
+     * to external storage.
+     */
+    @Suppress("UNUSED_PARAMETER")
     suspend fun backup(context: Context): String {
         val db = App.get().database
         val prefs = Prefs.get()
@@ -49,15 +71,22 @@ object BackupManager {
             )
         )
 
-        return json.encodeToString(data)
+        val plaintext = json.encodeToString(data)
+        return encrypt(plaintext)
     }
 
     suspend fun restore(context: Context, backupJson: String): BackupResult {
+        val decrypted = try {
+            decrypt(backupJson)
+        } catch (e: Exception) {
+            return BackupResult(false, "Could not decrypt backup: ${e.message}")
+        }
+
         val db = App.get().database
         val prefs = Prefs.get()
 
         val data = try {
-            json.decodeFromString<BackupData>(backupJson)
+            json.decodeFromString<BackupData>(decrypted)
         } catch (e: Exception) {
             return BackupResult(false, "Invalid backup file: ${e.message}")
         }
@@ -67,7 +96,6 @@ object BackupManager {
         }
 
         try {
-            // Clear existing data before restore
             db.conversationsDao().deleteAllConversations()
             db.messagesDao().deleteAllMessages()
             db.attachmentsDao().deleteAllAttachments()
@@ -76,7 +104,6 @@ object BackupManager {
             db.blockedKeywordsDao().deleteAll()
             db.blockedNumbersDao().deleteAll()
 
-            // Insert restored data in batches
             if (data.conversations.isNotEmpty()) {
                 db.conversationsDao().insertConversations(data.conversations)
             }
@@ -99,7 +126,6 @@ object BackupManager {
                 db.blockedNumbersDao().insert(num)
             }
 
-            // Restore preferences
             val p = data.preferences
             prefs.deliveryReports = p.deliveryReports
             prefs.sendOnEnter = p.sendOnEnter
@@ -129,6 +155,47 @@ object BackupManager {
         } catch (e: Exception) {
             return BackupResult(false, "Restore failed: ${e.message}")
         }
+    }
+
+    // ── Encryption helpers ────────────────────────────────────────────────────
+
+    private fun getOrCreateKey(): SecretKey {
+        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
+        keyStore.load(null)
+        keyStore.getEntry(KEYSTORE_ALIAS, null)?.let {
+            return (it as KeyStore.SecretKeyEntry).secretKey
+        }
+        val kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+        kg.init(
+            KeyGenParameterSpec.Builder(
+                KEYSTORE_ALIAS,
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+            )
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(256)
+                .build()
+        )
+        return kg.generateKey()
+    }
+
+    private fun encrypt(plaintext: String): String {
+        val key = getOrCreateKey()
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, key)
+        val iv = cipher.iv
+        val ciphertext = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
+        return Base64.encodeToString(iv + ciphertext, Base64.NO_WRAP)
+    }
+
+    private fun decrypt(ciphertextB64: String): String {
+        val key = getOrCreateKey()
+        val raw = Base64.decode(ciphertextB64, Base64.DEFAULT)
+        val iv = raw.copyOfRange(0, GCM_IV_LENGTH)
+        val ct = raw.copyOfRange(GCM_IV_LENGTH, raw.size)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
+        return String(cipher.doFinal(ct), Charsets.UTF_8)
     }
 }
 

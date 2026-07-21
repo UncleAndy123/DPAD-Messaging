@@ -10,6 +10,8 @@ import android.os.Build
 import android.provider.Telephony
 import android.telephony.PhoneNumberUtils
 import android.telephony.SmsManager
+import android.util.Log
+import com.dpad.messaging.helpers.SmsWhitelistManager
 import com.dpad.messaging.receivers.SmsStatusDeliveredReceiver
 import com.dpad.messaging.receivers.SmsStatusSentReceiver
 
@@ -44,6 +46,12 @@ object SmsSender {
         scheduledMessageId: Long? = null
     ) {
         val destination = PhoneNumberUtils.stripSeparators(phoneNumber).ifBlank { phoneNumber }
+
+        // ── MDM security boundary: reject blocked recipients before any I/O ──
+        if (!SmsWhitelistManager.check(context, phoneNumber).allowed) {
+            Log.w("DPAD_MSG", "SmsSender.send: blocked $phoneNumber by MDM policy")
+            return
+        }
 
         // 1. Insert TYPE_OUTBOX so the message appears in the thread immediately.
         val cv = ContentValues().apply {

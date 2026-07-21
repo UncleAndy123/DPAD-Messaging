@@ -131,10 +131,20 @@ class ThreadActivity : BaseActivity() {
                 } catch (_: Exception) {
                     // Not all providers offer persistable permissions.
                 }
-                pendingAttachmentUri = uri
+                // Copy the picked bytes into app-owned storage NOW, while the read grant is
+                // still live. On Kyocera the picker returns a URI into the vendor's own
+                // non-exported provider (jp.kyocera.datafolder.provider); its transient grant is
+                // gone by the time MmsSender reads it on a background coroutine → SecurityException.
+                // Owning the bytes makes the send path independent of the vendor grant.
+                val owned = com.dpad.messaging.helpers.AttachmentStore.copyToOwnedCache(this, uri)
+                if (owned == null) {
+                    android.widget.Toast.makeText(this, R.string.error_picking_contact, android.widget.Toast.LENGTH_SHORT).show()
+                    return@registerForActivityResult
+                }
+                pendingAttachmentUri = owned
                 pendingAttachmentUris.clear()
-                pendingAttachmentUris.add(uri)
-                showAttachmentPreview(uri)
+                pendingAttachmentUris.add(owned)
+                showAttachmentPreview(owned)
             }
         }
 
@@ -501,20 +511,36 @@ class ThreadActivity : BaseActivity() {
             ?.mapNotNull { runCatching { Uri.parse(it) }.getOrNull() }
             .orEmpty()
         if (uriList.isNotEmpty()) {
+            // Copy each shared URI into app-owned storage while the incoming grant is live.
+            // Photos shared from the Kyocera gallery arrive as jp.kyocera.datafolder.provider
+            // URIs whose transient grant is dead by the time MmsSender reads them on a
+            // background coroutine → SecurityException. Owning the bytes avoids that.
+            val ownedList = uriList.mapNotNull {
+                com.dpad.messaging.helpers.AttachmentStore.copyToOwnedCache(this, it)
+            }
+            if (ownedList.isEmpty()) {
+                android.widget.Toast.makeText(this, R.string.error_picking_contact, android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
             pendingAttachmentUris.clear()
-            pendingAttachmentUris.addAll(uriList)
-            pendingAttachmentUri = uriList.first()
-            showAttachmentPreview(uriList.first())
+            pendingAttachmentUris.addAll(ownedList)
+            pendingAttachmentUri = ownedList.first()
+            showAttachmentPreview(ownedList.first())
             return
         }
 
         val uriString = intent?.getStringExtra(EXTRA_PREFILL_ATTACHMENT_URI)
         if (uriString.isNullOrBlank()) return
         val uri = Uri.parse(uriString)
-        pendingAttachmentUri = uri
+        val owned = com.dpad.messaging.helpers.AttachmentStore.copyToOwnedCache(this, uri)
+        if (owned == null) {
+            android.widget.Toast.makeText(this, R.string.error_picking_contact, android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        pendingAttachmentUri = owned
         pendingAttachmentUris.clear()
-        pendingAttachmentUris.add(uri)
-        showAttachmentPreview(uri)
+        pendingAttachmentUris.add(owned)
+        showAttachmentPreview(owned)
     }
 
     private fun launchCameraAttachment() {

@@ -252,7 +252,9 @@
         <receiver
             android:name=".receivers.MmsSentReceiver"
             android:exported="false" />
-
+        <receiver
+            android:name=".receivers.MmsDownloadResultReceiver"
+            android:exported="false" />
         <receiver
             android:name=".receivers.MmsDownloadReceiver"
             android:exported="false">

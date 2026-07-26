@@ -83,8 +83,27 @@ class MmsReceiver : BroadcastReceiver() {
         val msgId = rowUri.lastPathSegment?.toLongOrNull() ?: -1L
         Log.d(TAG, "pre-inserted placeholder row -> $rowUri (msgId=$msgId)")
 
+// Try the privileged system download first. On this Kyocera ROM the manual
+        // MmsDownloader can never reach the carrier MMS proxy (app-level
+        // requestNetwork(MMS) is ignored, so it binds to the internet APN and the
+        // proxy is unroutable). SmsManager.downloadMultimediaMessage runs in the
+        // system MMS service, which brings up the MMS APN itself — the same path
+        // that makes sending work. Result arrives async in MmsDownloadResultReceiver.
+        val systemDispatched = com.dpad.messaging.helpers.MmsSystemDownloader
+            .download(context, contentLocation, subId, msgId)
+
+        if (systemDispatched) {
+            Log.d(TAG, "dispatched to system MMS downloader (msgId=$msgId); result handled by MmsDownloadResultReceiver")
+            // The system service owns the async completion; nothing more to do here.
+            // NOTE: if you later find the system path fails on this device, remove
+            // this branch to fall through to the manual downloader below.
+            pendingResult.finish()
+            return
+        }
+
         AppCoroutineScopes.io.launch {
             try {
+                // Fallback: manual download (used only if the system path couldn't dispatch).
                 // Must finish before the ~10s broadcast timeout or the system ANRs us.
                 withTimeoutOrNull(9_000L) {
                     MmsDownloader.download(context, contentLocation, subId, msgId)

@@ -97,11 +97,30 @@ object MmsDownloader {
                 Log.w(TAG, "MmsDownloader: no MMS network — will use default data connection")
             }
 
-            // 2. Download PDU
+// 2. Download PDU
+// 2. Download PDU
             val pduBytes = downloadPdu(context, network, contentLocation)
             d { "MmsDownloader: PDU size=${pduBytes.size}" }
 
-            // 3. Parse PDU
+            // 3–6. Parse, MDM-filter, store, notify (shared with the system downloader).
+            processPdu(context, msgId, pduBytes)
+
+        } catch (e: Exception) {
+            e({ "MmsDownloader.download() failed - deleting placeholder msgId=$msgId" }, e)
+            deletePlaceholder(context, msgId)
+            EventBus.getDefault().post(RefreshConversations())
+        }
+    }
+    /**
+     * Parses an already-downloaded M-Retrieve-Conf PDU, applies the MDM hard-filter,
+     * and stores it into the Telephony provider. Shared by the manual download path
+     * and the privileged system path (MmsSystemDownloader → MmsDownloadResultReceiver).
+     *
+     * On filter-drop or parse failure the placeholder row is deleted and
+     * RefreshConversations is posted, mirroring download()'s failure handling.
+     */
+    suspend fun processPdu(context: Context, msgId: Long, pduBytes: ByteArray) {
+        try {
             val parsed = MmsPduParser.parse(pduBytes)
                 ?: throw Exception("MmsPduParser returned null — malformed PDU?")
             d { "MmsDownloader: from='${parsed.from}' subject='${parsed.subject}' textLen=${parsed.textBody.length} images=${parsed.imageParts.size}" }
@@ -121,14 +140,12 @@ object MmsDownloader {
 
             // 4–6. Store and notify
             storeMms(context, msgId, parsed)
-
         } catch (e: Exception) {
-            e({ "MmsDownloader.download() failed - deleting placeholder msgId=$msgId" }, e)
+            e({ "MmsDownloader.processPdu() failed - deleting placeholder msgId=$msgId" }, e)
             deletePlaceholder(context, msgId)
             EventBus.getDefault().post(RefreshConversations())
         }
     }
-
     // ── Network acquisition ───────────────────────────────────────────────────
 
     /**

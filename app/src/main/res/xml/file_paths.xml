@@ -4,4 +4,5 @@
     <cache-path name="mms_pdu" path="mms_pdu/" />
     <cache-path name="camera_capture" path="camera_capture/" />
     <cache-path name="mms_attachments" path="mms_attachments/" />
+    <cache-path name="mms_download" path="mms_download/" />
 </paths>

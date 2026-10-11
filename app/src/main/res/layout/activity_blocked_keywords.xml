@@ -29,7 +29,7 @@
             android:focusableInTouchMode="true"
             android:scaleType="center"
             android:src="@drawable/ic_back"
-            app:tint="@color/toolbarIcon" />
+            app:tint="@color/toolbar_icon_tint" />
 
         <TextView
             android:id="@+id/tv_toolbar_title"

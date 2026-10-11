@@ -180,6 +180,6 @@
         android:nextFocusLeft="@id/conversation_click_area"
         android:scaleType="center"
         android:src="@drawable/ic_more_vert"
-        app:tint="@color/toolbarIcon" />
+        app:tint="@color/toolbar_icon_tint" />
 
 </LinearLayout>

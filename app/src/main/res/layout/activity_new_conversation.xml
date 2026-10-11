@@ -40,7 +40,7 @@
             android:nextFocusDown="@id/et_recipient"
             android:scaleType="center"
             android:src="@drawable/ic_back"
-            app:tint="@color/toolbarIcon" />
+            app:tint="@color/toolbar_icon_tint" />
 
         <TextView
             android:layout_width="0dp"

@@ -35,9 +35,9 @@
     <color name="text_secondary">#625B4F</color>
     <color name="text_tertiary">#6B6254</color>
     <color name="divider_subtle">#D7CEBF</color>
-    <color name="focus_fill">#202936</color>
-    <color name="focus_outline">#F2C14E</color>
-    <color name="focus_content">#FFFFFF</color>
+    <color name="focus_fill">#E3D8C8</color>
+    <color name="focus_outline">#202936</color>
+    <color name="focus_content">#211E18</color>
     <color name="status_success">#317A5C</color>
     <color name="status_error">#A94442</color>
     <color name="surface_compose">@color/surface_base</color>
@@ -51,7 +51,7 @@
 
     <!-- ─── D-Pad Focus ─── (from DPAD Browser, adapted for messaging)
          Same teal/cyan language across all dpad-targeted apps.
-         Light theme uses darker, more opaque highlight for better contrast. -->
+         Light theme uses a light surface with dark focused content. -->
     <color name="focus_highlight">@color/focus_fill</color>
     <color name="focus_border">@color/focus_outline</color>
     <color name="focus_border_sent">@color/focus_outline</color>

@@ -2,10 +2,10 @@
 <!--
     Universal D-Pad focus state selector.
     Apply as android:background on ANY focusable view that needs
-    the standard teal focus ring (buttons, list items, etc.)
+     the standard focus ring (buttons, list items, etc.)
 -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- FOCUSED: accent-tinted fill + accent border -->
+    <!-- FOCUSED: theme-appropriate fill, content, and outline -->
     <item android:state_focused="true" android:state_pressed="false">
         <shape android:shape="rectangle">
             <solid android:color="@color/focus_fill"/>

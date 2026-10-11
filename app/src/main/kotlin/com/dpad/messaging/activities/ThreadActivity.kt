@@ -434,23 +434,9 @@ class ThreadActivity : BaseActivity() {
     }
 
     private fun setupComposeBar() {
-        // D-Pad UP from compose:
-        // 1) If chips are visible, go to the chips container.
-        // 2) If an attachment is visible, go to the remove-attachment button.
-        // 3) Otherwise return to the latest message. Another UP from the first
-        //    message reaches the toolbar through DpadRecyclerView.
-        val goUpFromCompose = { ->
-            if (binding.chipsContainerScroll.visibility == View.VISIBLE) {
-                binding.chipsContainer.getChildAt(binding.chipsContainer.childCount - 1)?.requestFocus()
-                    ?: binding.chipsContainerScroll.requestFocus()
-            } else if (binding.attachmentPreviewBar.visibility == View.VISIBLE) {
-                binding.btnRemoveAttachment.requestFocus()
-            } else if (threadAdapter.itemCount > 0) {
-                binding.rvMessages.focusLastItem()
-            } else {
-                binding.btnBack.requestFocus()
-            }
-        }
+        // A single UP from the keyboard returns to the toolbar. This keeps
+        // long threads from forcing the user to traverse every message.
+        val goUpFromCompose = { -> binding.btnBack.requestFocus() }
         binding.etMessage.setOnKeyListener { _, keyCode, event ->
             if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
             val typingWithIme = binding.etMessage.isTypingWithIme()
@@ -476,7 +462,7 @@ class ThreadActivity : BaseActivity() {
             }
         }
         // D-Pad UP from the tool icons → the compose field first; another UP
-        // from the field → `goUpFromCompose` (toolbar / chips / attachment).
+        // from the field → the toolbar.
         val goToMessageField = { ->
             binding.etMessage.requestFocus(); true
         }

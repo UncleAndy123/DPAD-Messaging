@@ -26,7 +26,6 @@ import com.dpad.messaging.helpers.AttachmentPolicy
 import com.dpad.messaging.helpers.ContactColors
 import com.dpad.messaging.helpers.MmsAttachmentShare
 import com.dpad.messaging.helpers.Prefs
-import com.dpad.messaging.helpers.ThemeManager
 import com.dpad.messaging.models.MmsAttachment
 import com.dpad.messaging.models.MmsAttachmentJson
 import com.dpad.messaging.models.Message
@@ -403,7 +402,17 @@ class ThreadAdapter(
         positionProvider: () -> Int
     ) {
         bubble.contentDescription = messageDescription(bubble.context, message)
+        val colors = restingColors?.map { bubble.context.getColor(it) }
+            ?: textViews.map { it.currentTextColor }
+        val focusedColor = bubble.context.getColor(R.color.focus_content)
+        fun updateTextColors(focused: Boolean) {
+            textViews.zip(colors).forEach { (textView, restingColor) ->
+                textView.setTextColor(if (focused) focusedColor else restingColor)
+            }
+        }
+        updateTextColors(bubble.hasFocus())
         bubble.setOnFocusChangeListener { _, hasFocus ->
+            updateTextColors(hasFocus)
             if (!hasFocus) return@setOnFocusChangeListener
             val position = positionProvider()
             if (position == RecyclerView.NO_POSITION) return@setOnFocusChangeListener
@@ -412,12 +421,6 @@ class ThreadAdapter(
                 .take(position + 1)
                 .count { it !is ThreadItem.DateHeader }
             onMessageFocused(message, messageNumber, messageCount)
-        }
-        val colors = restingColors ?: textViews.map { it.currentTextColor }
-        textViews.zip(colors).forEach { (textView, color) ->
-            textView.setTextColor(
-                ThemeManager.focusAwareTextColor(bubble.context, color)
-            )
         }
     }
 

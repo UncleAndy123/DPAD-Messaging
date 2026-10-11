@@ -29,8 +29,8 @@
         <item name="colorSecondary">@color/accent_blue</item>
         <item name="colorControlActivated">@color/accent_blue</item>
         <item name="colorControlHighlight">@color/focus_highlight</item>
-        <item name="sentMessageBubbleColor">@color/accent_blue</item>
-        <item name="sentMessageBubbleFocusedColor">@color/accent_blue_focused</item>
+        <item name="sentMessageBubbleColor">@color/accent_blue_dark</item>
+        <item name="sentMessageBubbleFocusedColor">@color/accent_blue_dark</item>
     </style>
 
     <style name="Theme.DpadMessaging.Green" parent="Theme.DpadMessaging">
@@ -39,8 +39,8 @@
         <item name="colorSecondary">@color/accent_green</item>
         <item name="colorControlActivated">@color/accent_green</item>
         <item name="colorControlHighlight">@color/focus_highlight</item>
-        <item name="sentMessageBubbleColor">@color/accent_green</item>
-        <item name="sentMessageBubbleFocusedColor">@color/accent_green_focused</item>
+        <item name="sentMessageBubbleColor">@color/accent_green_dark</item>
+        <item name="sentMessageBubbleFocusedColor">@color/accent_green_dark</item>
     </style>
 
     <style name="Theme.DpadMessaging.Orange" parent="Theme.DpadMessaging">
@@ -49,8 +49,8 @@
         <item name="colorSecondary">@color/accent_orange</item>
         <item name="colorControlActivated">@color/accent_orange</item>
         <item name="colorControlHighlight">@color/focus_highlight</item>
-        <item name="sentMessageBubbleColor">@color/accent_orange</item>
-        <item name="sentMessageBubbleFocusedColor">@color/accent_orange_focused</item>
+        <item name="sentMessageBubbleColor">@color/accent_orange_dark</item>
+        <item name="sentMessageBubbleFocusedColor">@color/accent_orange_dark</item>
     </style>
 
     <style name="Theme.DpadMessaging.Rose" parent="Theme.DpadMessaging">
@@ -59,8 +59,8 @@
         <item name="colorSecondary">@color/accent_rose</item>
         <item name="colorControlActivated">@color/accent_rose</item>
         <item name="colorControlHighlight">@color/focus_highlight</item>
-        <item name="sentMessageBubbleColor">@color/accent_rose</item>
-        <item name="sentMessageBubbleFocusedColor">@color/accent_rose_focused</item>
+        <item name="sentMessageBubbleColor">@color/accent_rose_dark</item>
+        <item name="sentMessageBubbleFocusedColor">@color/accent_rose_dark</item>
     </style>
 
     <!-- Splash screen: identical background so there's no flash -->

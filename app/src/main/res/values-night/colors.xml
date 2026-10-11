@@ -1,41 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- ─── Brand / Accent ─── -->
-    <color name="colorPrimary">#1A73E8</color>
-    <color name="colorPrimaryVariant">#0D47A1</color>
-    <color name="colorOnPrimary">#FFFFFF</color>
-    <color name="colorSecondary">#03DAC5</color>
-    <color name="colorOnSecondary">#000000</color>
+    <color name="colorPrimary">#E0A51A</color>
+    <color name="colorPrimaryVariant">#B87900</color>
+    <color name="colorOnPrimary">#17130B</color>
+    <color name="colorSecondary">#E0A51A</color>
+    <color name="colorOnSecondary">#17130B</color>
 
-    <color name="accent_blue">#1A73E8</color>
+    <color name="accent_blue">#E0A51A</color>
     <color name="accent_green">#20B26B</color>
     <color name="accent_orange">#F39C3D</color>
     <color name="accent_rose">#E1608E</color>
 
-    <color name="accent_blue_dark">#1557B0</color>
+    <color name="accent_blue_dark">#B87900</color>
     <color name="accent_green_dark">#198954</color>
     <color name="accent_orange_dark">#C27B2F</color>
     <color name="accent_rose_dark">#B54D72</color>
 
-    <color name="accent_blue_highlight">#7A1A73E8</color>
+    <color name="accent_blue_highlight">#55E0A51A</color>
     <color name="accent_green_highlight">#7A20B26B</color>
     <color name="accent_orange_highlight">#7AF39C3D</color>
     <color name="accent_rose_highlight">#7AE1608E</color>
 
     <!-- ─── Semantic visual tokens ─── -->
-    <color name="surface_background">#151A1E</color>
-    <color name="surface_base">#1E252A</color>
-    <color name="surface_elevated">#252E34</color>
-    <color name="text_primary">#F2F5F7</color>
-    <color name="text_secondary">#AAB6BF</color>
-    <color name="text_tertiary">#81909A</color>
-    <color name="divider_subtle">#303A40</color>
-    <color name="focus_fill">#7A03DAC5</color>
-    <color name="focus_outline">#00FFFF</color>
-    <color name="status_success">#36C7B4</color>
-    <color name="status_error">#E07B8C</color>
+    <color name="surface_background">#171512</color>
+    <color name="surface_base">#211E19</color>
+    <color name="surface_elevated">#2C2821</color>
+    <color name="text_primary">#F7F0E3</color>
+    <color name="text_secondary">#C6BBA8</color>
+    <color name="text_tertiary">#978D7D</color>
+    <color name="divider_subtle">#403A30</color>
+    <color name="focus_fill">#805A00</color>
+    <color name="focus_outline">#F0B52C</color>
+    <color name="status_success">#70C99D</color>
+    <color name="status_error">#F08A82</color>
     <color name="surface_compose">@color/surface_base</color>
-    <color name="surface_compose_input">#283239</color>
+    <color name="surface_compose_input">#302A20</color>
 
     <!-- ─── Surface / Background aliases ─── -->
     <color name="colorBackground">@color/surface_background</color>
@@ -49,11 +49,11 @@
     <color name="focus_border_sent">@color/focus_outline</color>
 
     <!-- ─── Message Bubbles ─── -->
-    <color name="bubbleSentBg">#1A73E8</color>
-    <color name="bubbleSentBgFocused">#42A5F5</color>
-    <color name="bubbleSentText">#FFFFFF</color>
-    <color name="bubbleReceivedBg">#263038</color>
-    <color name="bubbleReceivedText">#E9EEF1</color>
+    <color name="bubbleSentBg">#805A00</color>
+    <color name="bubbleSentBgFocused">#A87500</color>
+    <color name="bubbleSentText">#FFF4D8</color>
+    <color name="bubbleReceivedBg">#302B23</color>
+    <color name="bubbleReceivedText">#F7F0E3</color>
 
     <!-- ─── Conversation List ─── -->
     <color name="conversationTitle">@color/text_primary</color>
@@ -63,15 +63,15 @@
     <color name="divider">@color/divider_subtle</color>
 
     <!-- ─── Toolbar ─── -->
-    <color name="toolbarBg">@color/surface_base</color>
+    <color name="toolbarBg">@color/surface_elevated</color>
     <color name="toolbarText">@color/text_primary</color>
-    <color name="toolbarIcon">@color/text_secondary</color>
+    <color name="toolbarIcon">@color/text_primary</color>
 
     <!-- ─── Date header ─── -->
     <color name="dateHeaderText">@color/text_tertiary</color>
 
     <!-- ─── Input / Compose ─── -->
-    <color name="composeBg">@color/surface_compose</color>
+    <color name="composeBg">@color/surface_elevated</color>
     <color name="composeInputBg">@color/surface_compose_input</color>
     <color name="composeInputText">#FFFFFF</color>
     <color name="composeHint">@color/text_tertiary</color>

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Avatar background circle — tinted per-contact in code -->
+<!-- Compact identity marker — tinted per-contact in code. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="oval">
+    android:shape="rectangle">
     <solid android:color="@color/colorPrimary" />
+    <corners android:radius="2dp" />
 </shape>

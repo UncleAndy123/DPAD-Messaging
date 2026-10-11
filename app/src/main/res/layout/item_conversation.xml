@@ -43,7 +43,7 @@
         android:paddingEnd="@dimen/conversation_padding_h"
         android:nextFocusRight="@id/btn_conversation_menu">
 
-        <!-- Avatar (contact photo or initial letter) -->
+        <!-- Compact identity marker (contact photo or initial letter) -->
         <FrameLayout
             android:layout_width="@dimen/avatar_size"
             android:layout_height="@dimen/avatar_size"

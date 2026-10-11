@@ -26,6 +26,7 @@ import com.dpad.messaging.helpers.AttachmentPolicy
 import com.dpad.messaging.helpers.ContactColors
 import com.dpad.messaging.helpers.MmsAttachmentShare
 import com.dpad.messaging.helpers.Prefs
+import com.dpad.messaging.helpers.ThemeManager
 import com.dpad.messaging.models.MmsAttachment
 import com.dpad.messaging.models.MmsAttachmentJson
 import com.dpad.messaging.models.Message
@@ -184,6 +185,16 @@ class ThreadAdapter(
                 message = message,
                 bubbleContainer = binding.bubbleContainer
             )
+            applyMessageFocus(
+                bubble = binding.bubbleContainer,
+                message = message,
+                textViews = listOf(binding.tvBody, binding.tvTime, binding.tvStatus),
+                restingColors = listOf(
+                    R.color.bubbleSentText,
+                    R.color.messageMetaOnSent,
+                    R.color.statusDelivered
+                )
+            )
             binding.bubbleContainer.setOnLongClickListener {
                 onMessageLongClick(message)
                 true
@@ -212,6 +223,12 @@ class ThreadAdapter(
             bindMessageAttachment(
                 message = message,
                 bubbleContainer = binding.bubbleContainer
+            )
+            applyMessageFocus(
+                bubble = binding.bubbleContainer,
+                message = message,
+                textViews = listOf(binding.tvBody, binding.tvTime, binding.tvSenderName),
+                restingColors = null
             )
             binding.bubbleContainer.setOnLongClickListener {
                 onMessageLongClick(message)
@@ -247,7 +264,7 @@ class ThreadAdapter(
                 return
             }
 
-            binding.bubbleContainer.background = ContactColors.receivedBubbleDrawable(color)
+            binding.bubbleContainer.background = ContactColors.receivedBubbleDrawable(context, color)
             binding.tvBody.setTextColor(ContactColors.textColorOn(color))
             binding.tvTime.setTextColor(ContactColors.metaColorOn(color))
             binding.tvSenderName.setTextColor(color)
@@ -279,6 +296,12 @@ class ThreadAdapter(
             bindMessageAttachment(
                 message = message,
                 bubbleContainer = binding.bubbleContainer
+            )
+            applyMessageFocus(
+                bubble = binding.bubbleContainer,
+                message = message,
+                textViews = listOf(binding.tvBody, binding.tvState),
+                restingColors = listOf(R.color.bubbleSentText, R.color.messageMetaOnSent)
             )
 
             binding.bubbleContainer.setOnLongClickListener {
@@ -366,6 +389,33 @@ class ThreadAdapter(
             attachmentAdapter.submitAttachments(attachments)
         }
         rvAttachments.visibility = View.VISIBLE
+    }
+
+    private fun applyMessageFocus(
+        bubble: View,
+        message: Message,
+        textViews: List<TextView>,
+        restingColors: List<Int>?
+    ) {
+        bubble.contentDescription = messageDescription(bubble.context, message)
+        val colors = restingColors ?: textViews.map { it.currentTextColor }
+        textViews.zip(colors).forEach { (textView, color) ->
+            textView.setTextColor(
+                ThemeManager.focusAwareTextColor(bubble.context, color)
+            )
+        }
+    }
+
+    private fun messageDescription(context: Context, message: Message): String {
+        val body = message.body.ifBlank {
+            if (message.isMms) context.getString(R.string.attach)
+            else context.getString(R.string.empty_message)
+        }
+        return context.getString(
+            if (message.isIncoming) R.string.message_description_received
+            else R.string.message_description_sent,
+            body
+        )
     }
 
     private inner class AttachmentAdapter(
@@ -579,6 +629,12 @@ class ThreadAdapter(
             binding.bubbleContainer.isFocusableInTouchMode = !binding.tvBody.isFocusableInTouchMode
             binding.tvBody.scrollTo(0, 0)
             binding.tvBody.visibility = if (message.body.isBlank()) View.GONE else View.VISIBLE
+            applyMessageFocus(
+                bubble = binding.bubbleContainer,
+                message = message,
+                textViews = listOf(binding.tvBody),
+                restingColors = listOf(R.color.bubbleSentText)
+            )
             binding.bubbleContainer.setOnLongClickListener {
                 onMessageLongClick(message)
                 true

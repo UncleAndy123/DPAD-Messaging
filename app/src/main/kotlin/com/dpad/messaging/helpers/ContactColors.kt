@@ -11,6 +11,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -112,11 +113,16 @@ object ContactColors {
      * Received-bubble background using [color]. Overall shape matches
      * drawable/bubble_received.xml; focus state adds the cyan ring.
      */
-    fun receivedBubbleDrawable(color: Int): Drawable {
+    fun receivedBubbleDrawable(context: Context, color: Int): Drawable {
         val normal = roundedRect(color, 0f, 0).apply {
             cornerRadii = floatArrayOf(10f, 10f, 10f, 10f, 10f, 10f, 2f, 2f)
         }
-        val focused = roundedRect(color, 0f, 7).apply {
+        val focused = roundedRect(
+            ContextCompat.getColor(context, R.color.focus_fill),
+            0f,
+            1,
+            ContextCompat.getColor(context, R.color.focus_border)
+        ).apply {
             cornerRadii = floatArrayOf(10f, 10f, 10f, 10f, 10f, 10f, 2f, 2f)
         }
         return StateListDrawable().apply {

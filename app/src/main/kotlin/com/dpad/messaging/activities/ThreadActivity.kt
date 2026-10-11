@@ -419,14 +419,16 @@ class ThreadActivity : BaseActivity() {
         // D-Pad UP from compose:
         // 1) If chips are visible, go to the chips container.
         // 2) If an attachment is visible, go to the remove-attachment button.
-        // 3) Otherwise go directly to the toolbar (bypasses message list so
-        //    the user doesn't have to scroll through every message).
+        // 3) Otherwise return to the latest message. Another UP from the first
+        //    message reaches the toolbar through DpadRecyclerView.
         val goUpFromCompose = { ->
             if (binding.chipsContainerScroll.visibility == View.VISIBLE) {
                 binding.chipsContainer.getChildAt(binding.chipsContainer.childCount - 1)?.requestFocus()
                     ?: binding.chipsContainerScroll.requestFocus()
             } else if (binding.attachmentPreviewBar.visibility == View.VISIBLE) {
                 binding.btnRemoveAttachment.requestFocus()
+            } else if (threadAdapter.itemCount > 0) {
+                binding.rvMessages.focusLastItem()
             } else {
                 binding.btnBack.requestFocus()
             }

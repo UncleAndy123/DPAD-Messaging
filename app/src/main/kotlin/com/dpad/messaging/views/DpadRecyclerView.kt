@@ -92,7 +92,9 @@ class DpadRecyclerView @JvmOverloads constructor(
             val lm = layoutManager as? LinearLayoutManager ?: return@post
             val firstPos = lm.findFirstVisibleItemPosition()
                 .takeIf { it != NO_POSITION } ?: 0
-            findViewHolderForAdapterPosition(firstPos)?.itemView?.requestFocus()
+            for (position in firstPos until (adapter?.itemCount ?: 0)) {
+                if (focusItemView(position)) break
+            }
         }
     }
 
@@ -108,7 +110,9 @@ class DpadRecyclerView @JvmOverloads constructor(
             scrollToPosition(itemCount - 1)
             post {
                 if (focusedChild == null) {
-                    findViewHolderForAdapterPosition(itemCount - 1)?.itemView?.requestFocus()
+                    for (position in itemCount - 1 downTo 0) {
+                        if (focusItemView(position)) break
+                    }
                 }
             }
         }
@@ -123,9 +127,25 @@ class DpadRecyclerView @JvmOverloads constructor(
         scrollToPosition(position)
         post {
             if (focusedChild == null) {
-                findViewHolderForAdapterPosition(position)?.itemView?.requestFocus()
+                focusItemView(position)
             }
         }
+    }
+
+    /** Focuses the actual message bubble, not the non-focusable item wrapper. */
+    private fun focusItemView(position: Int): Boolean {
+        val itemView = findViewHolderForAdapterPosition(position)?.itemView ?: return false
+        return findFocusableDescendant(itemView)?.requestFocus() == true
+    }
+
+    private fun findFocusableDescendant(view: View): View? {
+        if (view.isShown && view.isFocusable && view.isEnabled) return view
+        if (view is android.view.ViewGroup) {
+            for (index in 0 until view.childCount) {
+                findFocusableDescendant(view.getChildAt(index))?.let { return it }
+            }
+        }
+        return null
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {

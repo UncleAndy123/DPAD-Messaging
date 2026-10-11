@@ -39,7 +39,8 @@ import java.util.Locale
 class ThreadAdapter(
     private val onMessageLongClick: (Message) -> Unit,
     private val onAttachmentAction: (MmsAttachment) -> Unit = {},
-    private val threadNumbers: List<String> = emptyList()
+    private val threadNumbers: List<String> = emptyList(),
+    private val onMessageFocused: (Message, Int, Int) -> Unit = { _, _, _ -> }
 ) : ListAdapter<ThreadItem, RecyclerView.ViewHolder>(DIFF_CALLBACK) {
 
     private var audioPlayer: MediaPlayer? = null
@@ -193,7 +194,8 @@ class ThreadAdapter(
                     R.color.bubbleSentText,
                     R.color.messageMetaOnSent,
                     R.color.statusDelivered
-                )
+                ),
+                positionProvider = { bindingAdapterPosition }
             )
             binding.bubbleContainer.setOnLongClickListener {
                 onMessageLongClick(message)
@@ -228,7 +230,8 @@ class ThreadAdapter(
                 bubble = binding.bubbleContainer,
                 message = message,
                 textViews = listOf(binding.tvBody, binding.tvTime, binding.tvSenderName),
-                restingColors = null
+                restingColors = null,
+                positionProvider = { bindingAdapterPosition }
             )
             binding.bubbleContainer.setOnLongClickListener {
                 onMessageLongClick(message)
@@ -301,7 +304,8 @@ class ThreadAdapter(
                 bubble = binding.bubbleContainer,
                 message = message,
                 textViews = listOf(binding.tvBody, binding.tvState),
-                restingColors = listOf(R.color.bubbleSentText, R.color.messageMetaOnSent)
+                restingColors = listOf(R.color.bubbleSentText, R.color.messageMetaOnSent),
+                positionProvider = { bindingAdapterPosition }
             )
 
             binding.bubbleContainer.setOnLongClickListener {
@@ -395,9 +399,20 @@ class ThreadAdapter(
         bubble: View,
         message: Message,
         textViews: List<TextView>,
-        restingColors: List<Int>?
+        restingColors: List<Int>?,
+        positionProvider: () -> Int
     ) {
         bubble.contentDescription = messageDescription(bubble.context, message)
+        bubble.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) return@setOnFocusChangeListener
+            val position = positionProvider()
+            if (position == RecyclerView.NO_POSITION) return@setOnFocusChangeListener
+            val messageCount = currentList.count { it !is ThreadItem.DateHeader }
+            val messageNumber = currentList
+                .take(position + 1)
+                .count { it !is ThreadItem.DateHeader }
+            onMessageFocused(message, messageNumber, messageCount)
+        }
         val colors = restingColors ?: textViews.map { it.currentTextColor }
         textViews.zip(colors).forEach { (textView, color) ->
             textView.setTextColor(
@@ -633,7 +648,8 @@ class ThreadAdapter(
                 bubble = binding.bubbleContainer,
                 message = message,
                 textViews = listOf(binding.tvBody),
-                restingColors = listOf(R.color.bubbleSentText)
+                restingColors = listOf(R.color.bubbleSentText),
+                positionProvider = { bindingAdapterPosition }
             )
             binding.bubbleContainer.setOnLongClickListener {
                 onMessageLongClick(message)

@@ -128,6 +128,13 @@ class ThreadActivity : BaseActivity() {
     private var loadMessagesJob: Job? = null
     private var displayMessagesJob: Job? = null
     private var messageLoadGeneration = 0L
+    private var focusedMessageKey: MessageFocusKey? = null
+
+    private data class MessageFocusKey(
+        val id: Long,
+        val isMms: Boolean,
+        val isIncoming: Boolean
+    )
 
     // ─── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -343,6 +350,12 @@ class ThreadActivity : BaseActivity() {
 
         binding.btnBack.setOnClickListener { finish() }
 
+        listOf(binding.btnBack, binding.btnCall, binding.btnDetails).forEach { button ->
+            button.setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) clearFocusedMessage()
+            }
+        }
+
         binding.btnCall.setOnClickListener {
             handleCallAction()
         }
@@ -396,7 +409,12 @@ class ThreadActivity : BaseActivity() {
         threadAdapter = ThreadAdapter(
             onMessageLongClick = { message -> showMessageContextMenu(message) },
             onAttachmentAction = { attachment -> showAttachmentContextMenu(attachment) },
-            threadNumbers = (participants + phoneNumber).filter { it.isNotBlank() }
+            threadNumbers = (participants + phoneNumber).filter { it.isNotBlank() },
+            onMessageFocused = { message, number, total ->
+                focusedMessageKey = MessageFocusKey(message.id, message.isMms, message.isIncoming)
+                binding.tvMessageContext.text = getString(R.string.message_context_position, number, total)
+                binding.tvMessageContext.visibility = View.VISIBLE
+            }
         )
 
         binding.rvMessages.apply {
@@ -603,7 +621,10 @@ class ThreadActivity : BaseActivity() {
             binding.btnSchedule,
             binding.btnSim
         ).forEach { view ->
-            view.setOnFocusChangeListener { _, _ -> updateComposeToolsVisibility() }
+            view.setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) clearFocusedMessage()
+                updateComposeToolsVisibility()
+            }
         }
         updateComposeToolsVisibility()
 
@@ -632,6 +653,11 @@ class ThreadActivity : BaseActivity() {
                 binding.btnSchedule.hasFocus() ||
                 binding.btnSim.hasFocus()
         binding.composeToolsRow.visibility = if (toolsInUse) View.VISIBLE else View.GONE
+    }
+
+    private fun clearFocusedMessage() {
+        focusedMessageKey = null
+        binding.tvMessageContext.visibility = View.GONE
     }
 
     private fun launchAttachmentPickerWithPermission() {
@@ -1398,6 +1424,21 @@ class ThreadActivity : BaseActivity() {
                     if (!fromCache) {
                         scrollToBottomAfterSend = false
                     }
+                }
+                val key = focusedMessageKey
+                if (!shouldScroll && key != null) {
+                    val focusedPosition = items.indexOfFirst { item ->
+                        val message = when (item) {
+                            is ThreadItem.SentMessage -> item.message
+                            is ThreadItem.ReceivedMessage -> item.message
+                            is ThreadItem.SendingMessage -> item.message
+                            else -> null
+                        }
+                        message?.let {
+                            it.id == key.id && it.isMms == key.isMms && it.isIncoming == key.isIncoming
+                        } == true
+                    }
+                    if (focusedPosition >= 0) binding.rvMessages.focusItem(focusedPosition)
                 }
                 if (!hasInitializedList && !fromCache) {
                     hasInitializedList = true

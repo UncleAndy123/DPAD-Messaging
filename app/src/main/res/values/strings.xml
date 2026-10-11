@@ -48,6 +48,7 @@
     <string name="empty_message">Empty message</string>
     <string name="message_description_sent">Sent message: %1$s</string>
     <string name="message_description_received">Received message: %1$s</string>
+    <string name="message_context_position">Message %1$d of %2$d</string>
     <string name="schedule">Schedule</string>
     <string name="schedule_set">Set time</string>
     <string name="schedule_change">Change time</string>

@@ -62,6 +62,19 @@
              android:textSize="@dimen/text_size_body_emphasis"
             android:textStyle="bold" />
 
+        <!-- Visible context for the message currently receiving D-pad focus. -->
+        <TextView
+            android:id="@+id/tv_message_context"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="@dimen/padding_tiny"
+            android:gravity="center_vertical"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="@color/text_secondary"
+            android:textSize="@dimen/text_size_small"
+            android:visibility="gone" />
+
         <!-- Call button -->
         <ImageButton
             android:id="@+id/btn_call"

@@ -210,7 +210,6 @@ class BlockedNumbersActivity : BaseActivity() {
         isFocusableInTouchMode = true
         isClickable = true
         setBackgroundResource(R.drawable.item_focusable_bg)
-        backgroundTintList = ColorStateList.valueOf(ThemeManager.accentColor(this@BlockedNumbersActivity))
         setPadding(paddingH, paddingV, paddingH, paddingV)
         layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
@@ -219,10 +218,9 @@ class BlockedNumbersActivity : BaseActivity() {
     }
 
     private fun accentStateTextColors(): ColorStateList {
-        val accent = ThemeManager.accentColor(this)
         return ColorStateList(
             arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
-            intArrayOf(accent, getColor(R.color.colorOnBackground))
+            intArrayOf(getColor(R.color.colorOnPrimary), getColor(R.color.colorOnBackground))
         )
     }
 

@@ -220,7 +220,7 @@ class BlockedNumbersActivity : BaseActivity() {
     private fun accentStateTextColors(): ColorStateList {
         return ColorStateList(
             arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
-            intArrayOf(getColor(R.color.colorOnPrimary), getColor(R.color.colorOnBackground))
+            intArrayOf(getColor(R.color.focus_content), getColor(R.color.colorOnBackground))
         )
     }
 

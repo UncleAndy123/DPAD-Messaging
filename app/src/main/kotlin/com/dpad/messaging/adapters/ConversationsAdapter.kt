@@ -127,14 +127,12 @@ class ConversationsAdapter(
             binding.ivMuted.visibility = if (conversation.muted) View.VISIBLE else View.GONE
             binding.ivMuted.imageTintList = ColorStateList.valueOf(accent)
 
-            val tint = ColorStateList.valueOf(accent)
+            val tint = ThemeManager.focusAwareTint(binding.root.context)
             binding.btnConversationMenu.imageTintList = tint
-            binding.btnConversationMenu.backgroundTintList = tint
             binding.btnConversationMenu.contentDescription = binding.root.context.getString(
                 R.string.conversation_options_for,
                 conversation.title
             )
-            binding.conversationClickArea.backgroundTintList = tint
 
             // Avatar
             bindAvatar(conversation)

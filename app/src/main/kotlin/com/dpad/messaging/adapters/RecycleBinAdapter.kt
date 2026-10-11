@@ -1,6 +1,5 @@
 package com.dpad.messaging.adapters
 
-import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.view.LayoutInflater
 import android.view.View
@@ -57,7 +56,7 @@ class RecycleBinAdapter(
 
         fun bind(item: RecycledItem) {
             val accent = ThemeManager.accentColor(binding.root.context)
-            val tint   = ColorStateList.valueOf(accent)
+            val tint   = ThemeManager.focusAwareTint(binding.root.context)
 
             binding.tvName.text = item.senderName
             binding.tvName.setTypeface(null, Typeface.NORMAL)
@@ -77,8 +76,6 @@ class RecycleBinAdapter(
 
             // Accent tinting
             binding.btnConversationMenu.imageTintList = tint
-            binding.btnConversationMenu.backgroundTintList = tint
-            binding.conversationClickArea.backgroundTintList = tint
 
             // Avatar — letter-only (no photo lookup for deleted messages)
             binding.ivAvatar.visibility = View.GONE

@@ -28,7 +28,7 @@
         <item name="colorPrimaryVariant">@color/accent_blue_dark</item>
         <item name="colorSecondary">@color/accent_blue</item>
         <item name="colorControlActivated">@color/accent_blue</item>
-        <item name="colorControlHighlight">@color/accent_blue_highlight</item>
+        <item name="colorControlHighlight">@color/focus_highlight</item>
         <item name="sentMessageBubbleColor">@color/accent_blue</item>
         <item name="sentMessageBubbleFocusedColor">@color/accent_blue_focused</item>
     </style>
@@ -38,7 +38,7 @@
         <item name="colorPrimaryVariant">@color/accent_green_dark</item>
         <item name="colorSecondary">@color/accent_green</item>
         <item name="colorControlActivated">@color/accent_green</item>
-        <item name="colorControlHighlight">@color/accent_green_highlight</item>
+        <item name="colorControlHighlight">@color/focus_highlight</item>
         <item name="sentMessageBubbleColor">@color/accent_green</item>
         <item name="sentMessageBubbleFocusedColor">@color/accent_green_focused</item>
     </style>
@@ -48,7 +48,7 @@
         <item name="colorPrimaryVariant">@color/accent_orange_dark</item>
         <item name="colorSecondary">@color/accent_orange</item>
         <item name="colorControlActivated">@color/accent_orange</item>
-        <item name="colorControlHighlight">@color/accent_orange_highlight</item>
+        <item name="colorControlHighlight">@color/focus_highlight</item>
         <item name="sentMessageBubbleColor">@color/accent_orange</item>
         <item name="sentMessageBubbleFocusedColor">@color/accent_orange_focused</item>
     </style>
@@ -58,7 +58,7 @@
         <item name="colorPrimaryVariant">@color/accent_rose_dark</item>
         <item name="colorSecondary">@color/accent_rose</item>
         <item name="colorControlActivated">@color/accent_rose</item>
-        <item name="colorControlHighlight">@color/accent_rose_highlight</item>
+        <item name="colorControlHighlight">@color/focus_highlight</item>
         <item name="sentMessageBubbleColor">@color/accent_rose</item>
         <item name="sentMessageBubbleFocusedColor">@color/accent_rose_focused</item>
     </style>
@@ -73,6 +73,8 @@
         <item name="colorSurface">@color/surface_elevated</item>
         <item name="colorOnSurface">@color/text_primary</item>
         <item name="android:popupBackground">@color/surface_elevated</item>
+        <item name="android:colorControlHighlight">@color/focus_highlight</item>
+        <item name="colorControlHighlight">@color/focus_highlight</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="android:textColorSecondary">@color/text_tertiary</item>
     </style>

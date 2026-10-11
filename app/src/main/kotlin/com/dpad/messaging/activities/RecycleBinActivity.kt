@@ -1,6 +1,5 @@
 package com.dpad.messaging.activities
 
-import android.content.res.ColorStateList
 import android.os.Bundle
 import android.provider.Telephony
 import android.view.KeyEvent
@@ -51,9 +50,7 @@ class RecycleBinActivity : BaseActivity() {
     }
 
     private fun applyAccent() {
-        val tint = ColorStateList.valueOf(ThemeManager.accentColor(this))
-        binding.btnBack.imageTintList = tint
-        binding.btnBack.backgroundTintList = tint
+        binding.btnBack.imageTintList = ThemeManager.focusAwareTint(this)
     }
 
     // ─── Data ─────────────────────────────────────────────────────────────────

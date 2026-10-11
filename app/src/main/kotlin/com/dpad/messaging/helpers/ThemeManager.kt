@@ -2,6 +2,7 @@ package com.dpad.messaging.helpers
 
 import android.app.Activity
 import android.content.Context
+import android.content.res.ColorStateList
 import android.os.Build
 import android.view.ContextThemeWrapper
 import android.view.View
@@ -51,6 +52,29 @@ object ThemeManager {
             else -> R.color.accent_blue
         }
         return ContextCompat.getColor(context, colorRes)
+    }
+
+    /** Accent-colored at rest, but always legible against the neutral focus fill. */
+    fun focusAwareTint(context: Context): ColorStateList {
+        return ColorStateList(
+            arrayOf(
+                intArrayOf(android.R.attr.state_focused),
+                intArrayOf(android.R.attr.state_pressed),
+                intArrayOf()
+            ),
+            intArrayOf(
+                ContextCompat.getColor(context, R.color.focus_content),
+                ContextCompat.getColor(context, R.color.focus_content),
+                accentColor(context)
+            )
+        )
+    }
+
+    fun focusAwareTextColor(context: Context, restingColor: Int): ColorStateList {
+        return ColorStateList(
+            arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
+            intArrayOf(ContextCompat.getColor(context, R.color.focus_content), restingColor)
+        )
     }
 
     fun popupMenuContext(context: Context): Context =

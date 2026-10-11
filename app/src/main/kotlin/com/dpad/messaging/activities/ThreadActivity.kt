@@ -374,7 +374,7 @@ class ThreadActivity : BaseActivity() {
 
     private fun applyAccent() {
         val accent = ThemeManager.accentColor(this)
-        val tint = ColorStateList.valueOf(accent)
+        val tint = ThemeManager.focusAwareTint(this)
 
         binding.btnBack.imageTintList = tint
         binding.btnCall.imageTintList = tint
@@ -387,16 +387,6 @@ class ThreadActivity : BaseActivity() {
         binding.btnSim.setTextColor(accent)
         // btnRemoveAttachment uses its XML fill color — no tinting needed, keeps icon always visible.
 
-        binding.btnBack.backgroundTintList = tint
-        binding.btnCall.backgroundTintList = tint
-        binding.btnDetails.backgroundTintList = tint
-        binding.btnAttach.backgroundTintList = tint
-        binding.btnVoiceInput.backgroundTintList = tint
-        binding.btnVoiceRecord.backgroundTintList = tint
-        binding.btnPlayAttachment.backgroundTintList = tint
-        binding.btnSchedule.backgroundTintList = tint
-        binding.btnSend.backgroundTintList = tint
-        binding.btnSim.backgroundTintList = tint
 
         updateVoiceRecordUi()
         updateSendButtonState()

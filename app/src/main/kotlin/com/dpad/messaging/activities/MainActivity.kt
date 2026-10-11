@@ -3,7 +3,6 @@ package com.dpad.messaging.activities
 import android.Manifest
 import android.database.ContentObserver
 import android.app.role.RoleManager
-import android.content.res.ColorStateList
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -250,8 +249,7 @@ class MainActivity : BaseActivity() {
     }
 
     private fun applyAccent() {
-        val accent = ThemeManager.accentColor(this)
-        val tint = ColorStateList.valueOf(accent)
+        val tint = ThemeManager.focusAwareTint(this)
 
         listOf(
             binding.btnNewConversation,
@@ -260,7 +258,6 @@ class MainActivity : BaseActivity() {
             binding.btnSearchClose
         ).forEach { button ->
             button.imageTintList = tint
-            button.background?.mutate()?.setTintList(tint)
             button.invalidate()
         }
     }

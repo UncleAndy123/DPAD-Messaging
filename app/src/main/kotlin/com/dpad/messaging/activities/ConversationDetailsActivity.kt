@@ -256,14 +256,13 @@ class ConversationDetailsActivity : BaseActivity() {
 
     private fun applyAccent() {
         val accent = ThemeManager.accentColor(this)
-        val tint = ColorStateList.valueOf(accent)
+        val tint = ThemeManager.focusAwareTint(this)
         binding.btnBack.imageTintList = tint
-        binding.btnBack.backgroundTintList = tint
         binding.btnRename.setTextColor(
             ColorStateList(
                 arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
                 intArrayOf(
-                    ContextCompat.getColor(this, R.color.colorOnBackground),
+                    ContextCompat.getColor(this, R.color.focus_content),
                     ContextCompat.getColor(this, R.color.colorOnBackground)
                 )
             )
@@ -272,13 +271,13 @@ class ConversationDetailsActivity : BaseActivity() {
             ColorStateList(
                 arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
                 intArrayOf(
-                    ContextCompat.getColor(this, R.color.colorOnBackground),
+                    ContextCompat.getColor(this, R.color.focus_content),
                     ContextCompat.getColor(this, R.color.statusFailed)
                 )
             )
         )
 
-        val focusedForeground = ContextCompat.getColor(this, R.color.colorOnBackground)
+        val focusedForeground = ContextCompat.getColor(this, R.color.focus_content)
         participantNameViews.forEach { nameView ->
             nameView.setTextColor(
                 ColorStateList(

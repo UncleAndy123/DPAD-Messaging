@@ -2,7 +2,6 @@ package com.dpad.messaging.activities
 
 import android.app.Activity
 import android.content.Intent
-import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Telephony
@@ -92,14 +91,11 @@ class NewConversationActivity : BaseActivity() {
 
     private fun applyAccent() {
         val accent = ThemeManager.accentColor(this)
-        val tint = ColorStateList.valueOf(accent)
+        val tint = ThemeManager.focusAwareTint(this)
 
         binding.btnBack.imageTintList = tint
 
-        binding.btnBack.backgroundTintList = tint
-        binding.btnSend.backgroundTintList = tint
-        binding.btnAddRecipient.backgroundTintList = tint
-        binding.btnAddRecipient.setTextColor(accent)
+        binding.btnAddRecipient.setTextColor(ThemeManager.focusAwareTextColor(this, accent))
         updateSendButton()
     }
 

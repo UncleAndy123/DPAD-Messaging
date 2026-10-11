@@ -55,9 +55,7 @@ class BlockedKeywordsActivity : BaseActivity() {
     }
 
     private fun applyAccent() {
-        val tint = ColorStateList.valueOf(ThemeManager.accentColor(this))
-        binding.btnBack.imageTintList = tint
-        binding.btnBack.backgroundTintList = tint
+        binding.btnBack.imageTintList = ThemeManager.focusAwareTint(this)
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -250,7 +248,7 @@ class BlockedKeywordsActivity : BaseActivity() {
     private fun accentStateTextColors(): ColorStateList {
         return ColorStateList(
             arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
-            intArrayOf(getColor(R.color.colorOnPrimary), getColor(R.color.colorOnBackground))
+            intArrayOf(getColor(R.color.focus_content), getColor(R.color.colorOnBackground))
         )
     }
 

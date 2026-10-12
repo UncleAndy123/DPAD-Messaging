@@ -1,14 +1,30 @@
-# DPAD SMS
+<p align="center">
+  <img src="fastlane/metadata/android/en-US/images/icon.png" alt="DPAD Messaging icon" width="128" />
+</p>
 
-<img src="fastlane/metadata/android/en-US/images/icon.png" alt="DPAD Messaging icon" width="96" />
+<h1 align="center">DPAD Messaging</h1>
 
-A messaging app designed for dumbphones with D-pad navigation.
+<p align="center">
+  A focused messaging app for dumbphones, keypad phones, and anyone who prefers physical navigation.
+</p>
 
-## Download
+<p align="center">
+  <a href="https://github.com/jbriones95/DPAD-Messaging/releases"><img src="https://img.shields.io/github/v/release/jbriones95/DPAD-Messaging?display_name=tag&label=latest%20release" alt="Latest release" /></a>
+  <a href="https://f-droid.org/packages/com.dpadsms/"><img src="https://img.shields.io/f-droid/v/com.dpadsms.svg" alt="Available on F-Droid" /></a>
+  <a href="https://github.com/jbriones95/DPAD-Messaging/actions/workflows/android-ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/jbriones95/DPAD-Messaging/android-ci.yml?label=build" alt="Build status" /></a>
+</p>
 
-Grab the signed APK for the latest release from the [Releases page](https://github.com/jbriones95/DPAD-Messaging/releases), or install via F-Droid.
+<p align="center">
+  <a href="https://github.com/jbriones95/DPAD-Messaging/releases">Download</a> ·
+  <a href="https://f-droid.org/packages/com.dpadsms/">F-Droid</a> ·
+  <a href="https://github.com/jbriones95/DPAD-Messaging/issues">Report an issue</a>
+</p>
 
-## Features
+## Built for Physical Navigation
+
+DPAD Messaging keeps the important actions close, predictable, and usable without a touchscreen. It is designed for small screens, D-pads, hardware keys, and one-handed use.
+
+## Highlights
 
 - SMS/MMS send and receive
 - Group messaging with fan-out or group MMS
@@ -25,6 +41,14 @@ Grab the signed APK for the latest release from the [Releases page](https://gith
 - MMS attachment preview/gallery, voice messages, and speech-to-text dictation
 - Contact lookup with auto-suggest
 - Encrypted backup & restore of app data (device-bound)
+
+## Screenshots
+
+<p align="center">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/01-conversations.png" alt="Conversation list" width="180" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/02-thread.png" alt="Message thread" width="180" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/03-details.png" alt="Conversation details" width="180" />
+</p>
 
 ## Requirements
 
@@ -103,7 +127,7 @@ Handles SMS message sending via SmsManager, including long-message (multipart) h
 ### BackupManager
 Encrypted, device-bound backup and restore of app-local data.
 
-## Support
+## Support the Project
 
 If you find this app useful, consider supporting its development:
 

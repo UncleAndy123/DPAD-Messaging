@@ -1,5 +1,7 @@
 # DPAD SMS
 
+<img src="fastlane/metadata/android/en-US/images/icon.png" alt="DPAD Messaging icon" width="96" />
+
 A messaging app designed for dumbphones with D-pad navigation.
 
 ## Download

@@ -42,14 +42,6 @@ DPAD Messaging keeps the important actions close, predictable, and usable withou
 - Contact lookup with auto-suggest
 - Encrypted backup & restore of app data (device-bound)
 
-## Screenshots
-
-<p align="center">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/01-conversations.png" alt="Conversation list" width="180" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/02-thread.png" alt="Message thread" width="180" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/03-details.png" alt="Conversation details" width="180" />
-</p>
-
 ## Requirements
 
 - Android 6.0+ (API 23+)

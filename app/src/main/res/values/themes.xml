@@ -75,7 +75,10 @@
         <item name="android:popupBackground">@color/surface_elevated</item>
         <item name="android:colorControlHighlight">@color/focus_highlight</item>
         <item name="colorControlHighlight">@color/focus_highlight</item>
-        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:selectableItemBackground">@drawable/popup_menu_item_focus_bg</item>
+        <item name="colorControlActivated">@color/focus_outline</item>
+        <item name="android:colorControlActivated">@color/focus_outline</item>
+        <item name="android:textColorPrimary">@color/popup_menu_text</item>
         <item name="android:textColorSecondary">@color/text_tertiary</item>
     </style>
 

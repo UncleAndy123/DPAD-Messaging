@@ -35,9 +35,9 @@
     <color name="text_secondary">#625B4F</color>
     <color name="text_tertiary">#6B6254</color>
     <color name="divider_subtle">#D2DCE9</color>
-    <color name="focus_fill">#D7E8FF</color>
-    <color name="focus_outline">#1769D1</color>
-    <color name="focus_content">#102A43</color>
+    <color name="focus_fill">#FFE08A</color>
+    <color name="focus_outline">#754900</color>
+    <color name="focus_content">#241800</color>
     <color name="status_success">#317A5C</color>
     <color name="status_error">#A94442</color>
     <color name="surface_compose">@color/surface_base</color>
@@ -49,8 +49,7 @@
     <color name="colorOnBackground">@color/text_primary</color>
     <color name="colorOnSurface">@color/text_primary</color>
 
-    <!-- ─── D-Pad Focus ───
-         Blue fill and outline keep the focused item distinct from neutral surfaces. -->
+    <!-- ─── D-Pad Focus ─── High-contrast amber selector for hardware-key navigation. -->
     <color name="focus_highlight">@color/focus_fill</color>
     <color name="focus_border">@color/focus_outline</color>
     <color name="focus_border_sent">@color/focus_outline</color>

@@ -30,9 +30,9 @@
     <color name="text_secondary">#C6BBA8</color>
     <color name="text_tertiary">#B5AA98</color>
     <color name="divider_subtle">#403A30</color>
-    <color name="focus_fill">#3A342A</color>
-    <color name="focus_outline">#F2C14E</color>
-    <color name="focus_content">#F7F0E3</color>
+    <color name="focus_fill">#8A6418</color>
+    <color name="focus_outline">#FFD166</color>
+    <color name="focus_content">#151006</color>
     <color name="status_success">#70C99D</color>
     <color name="status_error">#F08A82</color>
     <color name="surface_compose">@color/surface_base</color>

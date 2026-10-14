@@ -434,15 +434,17 @@ class ThreadActivity : BaseActivity() {
     }
 
     private fun setupComposeBar() {
-        // A single UP from the keyboard returns to the toolbar. This keeps
-        // long threads from forcing the user to traverse every message.
-        val goUpFromCompose = { -> binding.btnBack.requestFocus() }
+        // UP from the compose area returns to the newest message above it.
+        val goUpFromCompose = {
+            if (threadAdapter.itemCount > 0) binding.rvMessages.focusLastItem()
+            else binding.btnBack.requestFocus()
+        }
         binding.etMessage.setOnKeyListener { _, keyCode, event ->
             if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
             val typingWithIme = binding.etMessage.isTypingWithIme()
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP -> {
-                    // UP always navigates in app (toolbar, chips, attachment)
+                    // UP returns to the newest message instead of jumping to the toolbar.
                     goUpFromCompose(); true
                 }
                 KeyEvent.KEYCODE_DPAD_CENTER -> {
@@ -462,7 +464,7 @@ class ThreadActivity : BaseActivity() {
             }
         }
         // D-Pad UP from the tool icons → the compose field first; another UP
-        // from the field → the toolbar.
+        // from the field → the newest message.
         val goToMessageField = { ->
             binding.etMessage.requestFocus(); true
         }

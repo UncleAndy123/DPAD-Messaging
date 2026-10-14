@@ -65,6 +65,32 @@ class App : Application() {
             }
             manager.createNotificationChannel(incomingChannel)
 
+            createIncomingMessageChannel(
+                manager = manager,
+                id = CHANNEL_MESSAGES_LONG,
+                name = "Messages",
+                vibrationPattern = longArrayOf(0L, 1000L),
+                accent = accent
+            )
+            createIncomingMessageChannel(
+                manager = manager,
+                id = CHANNEL_MESSAGES_DOUBLE,
+                name = "Messages (double vibration)",
+                vibrationPattern = longArrayOf(0L, 250L, 150L, 250L),
+                accent = accent
+            )
+
+            val quietIncomingChannel = NotificationChannel(
+                CHANNEL_MESSAGES_QUIET,
+                "Messages (quiet)",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Incoming SMS and MMS messages without heads-up banners"
+                enableVibration(false)
+                enableLights(false)
+            }
+            manager.createNotificationChannel(quietIncomingChannel)
+
             // Send failure channel
             val failureChannel = NotificationChannel(
                 CHANNEL_SEND_FAILURE,
@@ -86,8 +112,39 @@ class App : Application() {
         }
     }
 
+    private fun createIncomingMessageChannel(
+        manager: NotificationManager,
+        id: String,
+        name: String,
+        vibrationPattern: LongArray,
+        accent: Int
+    ) {
+        val channel = NotificationChannel(id, name, NotificationManager.IMPORTANCE_HIGH).apply {
+            description = "Incoming SMS and MMS messages"
+            enableVibration(true)
+            this.vibrationPattern = vibrationPattern
+            enableLights(true)
+            lightColor = accent
+        }
+        manager.createNotificationChannel(channel)
+    }
+
     companion object {
         const val CHANNEL_MESSAGES = "dpad_messages_incoming"
+        const val CHANNEL_MESSAGES_LONG = "dpad_messages_incoming_long"
+        const val CHANNEL_MESSAGES_DOUBLE = "dpad_messages_incoming_double"
+        const val CHANNEL_MESSAGES_QUIET = "dpad_messages_incoming_quiet"
+
+        fun messageChannelId(): String {
+            val prefs = Prefs.get()
+            return if (prefs.messageNotificationStyle == Prefs.NOTIFICATION_STYLE_QUIET) {
+                CHANNEL_MESSAGES_QUIET
+            } else if (prefs.messageVibrationStyle == Prefs.VIBRATION_STYLE_DOUBLE) {
+                CHANNEL_MESSAGES_DOUBLE
+            } else {
+                CHANNEL_MESSAGES_LONG
+            }
+        }
         const val CHANNEL_SEND_FAILURE = "dpad_messages_send_failure"
         const val CHANNEL_BACKUP = "dpad_backup_restore"
 

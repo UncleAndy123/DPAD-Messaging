@@ -39,6 +39,8 @@ class Prefs private constructor(context: Context) {
         private const val KEY_AUTO_DOWNLOAD_MMS   = "auto_download_mms"
         private const val KEY_DEFAULT_SMS_DISMISSED = "default_sms_dismissed"
         private const val KEY_EXPERIMENTAL_UPDATES = "experimental_updates"
+        private const val KEY_MESSAGE_NOTIFICATION_STYLE = "message_notification_style"
+        private const val KEY_MESSAGE_VIBRATION_STYLE = "message_vibration_style"
         private const val KEY_CONTACT_COLOR_PREFIX = "contact_color_"
 
         const val PRIVACY_FULL        = "full"
@@ -62,6 +64,10 @@ class Prefs private constructor(context: Context) {
         const val ATTACHMENT_PREVIEW_SMALL  = "small"
         const val ATTACHMENT_PREVIEW_NORMAL = "normal"
         const val ATTACHMENT_PREVIEW_LARGE  = "large"
+        const val NOTIFICATION_STYLE_HEADS_UP = "heads_up"
+        const val NOTIFICATION_STYLE_QUIET = "quiet"
+        const val VIBRATION_STYLE_LONG = "long"
+        const val VIBRATION_STYLE_DOUBLE = "double"
 
         private const val TAG = "Prefs"
 
@@ -167,6 +173,23 @@ class Prefs private constructor(context: Context) {
     var experimentalUpdates: Boolean
         get() = prefs.getBoolean(KEY_EXPERIMENTAL_UPDATES, false)
         set(v) = prefs.edit().putBoolean(KEY_EXPERIMENTAL_UPDATES, v).apply()
+
+    /** Controls whether incoming message alerts may appear as heads-up banners. */
+    var messageNotificationStyle: String
+        get() = prefs.getString(KEY_MESSAGE_NOTIFICATION_STYLE, NOTIFICATION_STYLE_HEADS_UP)
+            ?: NOTIFICATION_STYLE_HEADS_UP
+        set(v) = prefs.edit().putString(KEY_MESSAGE_NOTIFICATION_STYLE, v).apply()
+
+    /** Controls the vibration pattern used for incoming message alerts. */
+    var messageVibrationStyle: String
+        get() = prefs.getString(KEY_MESSAGE_VIBRATION_STYLE, VIBRATION_STYLE_LONG)
+            ?: VIBRATION_STYLE_LONG
+        set(v) = prefs.edit().putString(KEY_MESSAGE_VIBRATION_STYLE, v).apply()
+
+    fun messageVibrationPattern(): LongArray = when (messageVibrationStyle) {
+        VIBRATION_STYLE_DOUBLE -> longArrayOf(0L, 250L, 150L, 250L)
+        else -> longArrayOf(0L, 1000L)
+    }
 
     /** Returns true when notifications are muted for [threadId]. */
     fun isThreadMuted(threadId: Long): Boolean {

@@ -422,10 +422,10 @@ class ThreadActivity : BaseActivity() {
             layoutManager = LinearLayoutManager(this@ThreadActivity).apply {
                 stackFromEnd = true   // newest messages at the bottom
             }
-            // D-Pad UP from first message → toolbar
-            onTopEdgeReached = {
-                binding.btnBack.requestFocus()
-            }
+            // D-Pad UP from the first message stays in the list; horizontal navigation exits to the toolbar.
+            consumeUpAtTop = true
+            onLeftNavigation = { binding.btnBack.requestFocus() }
+            onRightNavigation = { binding.btnDetails.requestFocus() }
             // D-Pad DOWN from last message → compose bar
             onBottomEdgeReached = {
                 binding.etMessage.requestFocus()

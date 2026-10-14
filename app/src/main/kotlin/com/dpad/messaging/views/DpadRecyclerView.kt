@@ -30,6 +30,13 @@ class DpadRecyclerView @JvmOverloads constructor(
     /** Called when the user tries to navigate DOWN past the last item. */
     var onBottomEdgeReached: (() -> Unit)? = null
 
+    /** Optional horizontal exits for lists whose toolbar is above the list. */
+    var onLeftNavigation: (() -> Unit)? = null
+    var onRightNavigation: (() -> Unit)? = null
+
+    /** Keeps UP on the first item instead of falling through to a view above the list. */
+    var consumeUpAtTop: Boolean = false
+
     override fun focusSearch(focused: View, direction: Int): View? {
         val lm = layoutManager as? LinearLayoutManager
 
@@ -40,9 +47,18 @@ class DpadRecyclerView @JvmOverloads constructor(
                     val focusedPos = getFocusedAdapterPosition(focused)
                     if (firstVisible <= 0 && (focusedPos <= 0 || focusedPos == RecyclerView.NO_POSITION)) {
                         onTopEdgeReached?.invoke()
+                        if (consumeUpAtTop) return focused
                         // Let the framework find the next focusable view above this RecyclerView
                         return focusSearchParent(direction)
                     }
+                }
+                FOCUS_LEFT -> {
+                    onLeftNavigation?.invoke()
+                    if (onLeftNavigation != null) return null
+                }
+                FOCUS_RIGHT -> {
+                    onRightNavigation?.invoke()
+                    if (onRightNavigation != null) return null
                 }
                 FOCUS_DOWN -> {
                     val itemCount = adapter?.itemCount ?: 0

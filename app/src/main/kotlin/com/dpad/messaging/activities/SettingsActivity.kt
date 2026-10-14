@@ -385,6 +385,42 @@ class SettingsActivity : BaseActivity() {
             getValue = { prefs.experimentalUpdates || BuildConfig.UPDATE_CHANNEL == "experimental" },
             setValue = { enabled -> prefs.experimentalUpdates = enabled }
         )
+        valueRow(
+            container = c,
+            label = getString(R.string.message_notification_style),
+            summary = getString(R.string.message_notification_style_summary),
+            getValue = { prefs.messageNotificationStyle },
+            optionValues = listOf(
+                Prefs.NOTIFICATION_STYLE_HEADS_UP,
+                Prefs.NOTIFICATION_STYLE_QUIET
+            ),
+            optionLabels = listOf(
+                getString(R.string.notification_style_heads_up),
+                getString(R.string.notification_style_quiet)
+            ),
+            setValue = {
+                prefs.messageNotificationStyle = it
+                App.get().refreshNotificationChannels()
+            }
+        )
+        valueRow(
+            container = c,
+            label = getString(R.string.message_vibration_style),
+            summary = getString(R.string.message_vibration_style_summary),
+            getValue = { prefs.messageVibrationStyle },
+            optionValues = listOf(
+                Prefs.VIBRATION_STYLE_LONG,
+                Prefs.VIBRATION_STYLE_DOUBLE
+            ),
+            optionLabels = listOf(
+                getString(R.string.vibration_style_long),
+                getString(R.string.vibration_style_double)
+            ),
+            setValue = {
+                prefs.messageVibrationStyle = it
+                App.get().refreshNotificationChannels()
+            }
+        )
 
         navRow(
             container = c,
@@ -408,7 +444,7 @@ class SettingsActivity : BaseActivity() {
                 container = c,
                 label = getString(R.string.message_notifications),
                 summary = getString(R.string.message_notifications_summary),
-                onClick = { openNotificationChannelSettings(App.CHANNEL_MESSAGES) }
+                onClick = { openNotificationChannelSettings(App.messageChannelId()) }
             )
             navRow(
                 container = c,

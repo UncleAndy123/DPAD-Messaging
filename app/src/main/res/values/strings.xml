@@ -151,6 +151,14 @@
     <string name="other">Other</string>
     <string name="notifications">Notifications</string>
     <string name="notifications_summary">Configure notification channels</string>
+    <string name="message_notification_style">Message Alert Style</string>
+    <string name="message_notification_style_summary">Choose whether new messages appear as top-of-screen banners</string>
+    <string name="notification_style_heads_up">Heads-up banner</string>
+    <string name="notification_style_quiet">Quiet notification</string>
+    <string name="message_vibration_style">Message Vibration</string>
+    <string name="message_vibration_style_summary">Choose the vibration pattern for new message alerts</string>
+    <string name="vibration_style_long">One long buzz</string>
+    <string name="vibration_style_double">Two short buzzes</string>
     <string name="message_notifications">Message notifications</string>
     <string name="message_notifications_summary">Incoming SMS and MMS alerts</string>
     <string name="failure_notifications">Send failure notifications</string>

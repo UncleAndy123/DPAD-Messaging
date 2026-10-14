@@ -111,9 +111,15 @@ object NotificationHelper {
         val sender = Person.Builder().setName(senderName).build()
         val silentUnknownSender = Prefs.get().silentUnknownSenders &&
             (senderName.isBlank() || senderName.trim() == phoneNumber.trim())
+        val notificationChannel = if (silentUnknownSender) {
+            App.CHANNEL_MESSAGES_QUIET
+        } else {
+            App.messageChannelId()
+        }
+        val quietNotification = notificationChannel == App.CHANNEL_MESSAGES_QUIET
         val messageStyle = NotificationCompat.MessagingStyle(sender)
             .addMessage(body, System.currentTimeMillis(), sender)
-        val builder = NotificationCompat.Builder(context, App.CHANNEL_MESSAGES)
+        val builder = NotificationCompat.Builder(context, notificationChannel)
             .setSmallIcon(R.drawable.ic_new_message)
             .setColor(accentColor)
             .setColorized(true)
@@ -124,23 +130,28 @@ object NotificationHelper {
             .setAutoCancel(true)
             .setCategory(Notification.CATEGORY_MESSAGE)
             .setSilent(silentUnknownSender)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(
+                if (quietNotification) NotificationCompat.PRIORITY_DEFAULT
+                else NotificationCompat.PRIORITY_HIGH
+            )
             .addAction(replyAction)
             .addAction(markReadAction)
 
         // Android O moved alert behavior to notification channels. Older devices
         // need the defaults explicitly set on each notification.
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O &&
-            !silentUnknownSender
+            !quietNotification
         ) {
-            builder.setDefaults(Notification.DEFAULT_SOUND or Notification.DEFAULT_VIBRATE)
+            builder
+                .setDefaults(Notification.DEFAULT_SOUND)
+                .setVibrate(Prefs.get().messageVibrationPattern())
         }
 
         // Apply lock screen privacy setting.
         when (Prefs.get().lockScreenPrivacy) {
             Prefs.PRIVACY_SENDER_ONLY -> {
                 // Show only sender on lock screen; body is hidden.
-                val publicNotif = NotificationCompat.Builder(context, App.CHANNEL_MESSAGES)
+                val publicNotif = NotificationCompat.Builder(context, notificationChannel)
                     .setSmallIcon(R.drawable.ic_new_message)
                     .setColor(accentColor)
                     .setColorized(true)
@@ -152,7 +163,7 @@ object NotificationHelper {
                     .setPublicVersion(publicNotif)
             }
             Prefs.PRIVACY_NONE -> {
-                val publicNotif = NotificationCompat.Builder(context, App.CHANNEL_MESSAGES)
+                val publicNotif = NotificationCompat.Builder(context, notificationChannel)
                     .setSmallIcon(R.drawable.ic_new_message)
                     .setColor(accentColor)
                     .setColorized(true)
@@ -184,6 +195,8 @@ object NotificationHelper {
     fun showPendingMmsNotification(context: Context, messageId: Long, subscriptionId: Int) {
         if (messageId <= 0L) return
         val notificationId = pendingMmsNotificationId(messageId)
+        val notificationChannel = App.messageChannelId()
+        val quietNotification = notificationChannel == App.CHANNEL_MESSAGES_QUIET
         val downloadIntent = MmsDownloadPolicy.pendingDownloadIntent(context, messageId, subscriptionId)
         val downloadPendingIntent = PendingIntent.getBroadcast(
             context,
@@ -191,7 +204,7 @@ object NotificationHelper {
             downloadIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val builder = NotificationCompat.Builder(context, App.CHANNEL_MESSAGES)
+        val builder = NotificationCompat.Builder(context, notificationChannel)
             .setSmallIcon(R.drawable.ic_new_message)
             .setColor(ThemeManager.accentColor(context))
             .setContentTitle(context.getString(R.string.mms_download_pending_title))
@@ -199,11 +212,16 @@ object NotificationHelper {
             .setContentIntent(downloadPendingIntent)
             .setAutoCancel(false)
             .setCategory(Notification.CATEGORY_MESSAGE)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(
+                if (quietNotification) NotificationCompat.PRIORITY_DEFAULT
+                else NotificationCompat.PRIORITY_HIGH
+            )
             .addAction(0, context.getString(R.string.download_mms), downloadPendingIntent)
 
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) {
-            builder.setDefaults(Notification.DEFAULT_SOUND or Notification.DEFAULT_VIBRATE)
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O && !quietNotification) {
+            builder
+                .setDefaults(Notification.DEFAULT_SOUND)
+                .setVibrate(Prefs.get().messageVibrationPattern())
         }
         context.getSystemService(NotificationManager::class.java)
             .notify(notificationId, builder.build())

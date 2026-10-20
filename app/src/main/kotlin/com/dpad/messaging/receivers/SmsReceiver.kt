@@ -158,6 +158,12 @@ class SmsReceiver : BroadcastReceiver() {
             e.printStackTrace()
         }
 
+        // Publish provider changes before optional database/contact/notification work.
+        // A slow contacts provider must not hold the visible conversation hostage.
+        com.dpad.messaging.helpers.MessageCache.invalidate(threadId)
+        EventBus.getDefault().post(RefreshConversations())
+        EventBus.getDefault().post(RefreshMessages(threadId))
+
         // ── Local soft-filter (upstream blocklist + keywords) — suppress notification only ──
         val keywords = App.get().database.blockedKeywordsDao().getAll()
         val blockedNumbers = App.get().database.blockedNumbersDao().getAll()
@@ -174,9 +180,6 @@ class SmsReceiver : BroadcastReceiver() {
             NotificationHelper.showIncomingNotification(context, threadId, senderName, address, body)
         }
 
-        if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "SmsReceiver: posting EventBus RefreshMessages(threadId=$threadId)")
-        EventBus.getDefault().post(RefreshConversations())
-        EventBus.getDefault().post(RefreshMessages(threadId))
     }
 
 }

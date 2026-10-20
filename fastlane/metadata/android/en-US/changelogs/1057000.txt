@@ -1,0 +1,5 @@
+Open conversations sooner, without waiting for contact names to load.
+Stop repeated message updates from restarting the loading screen.
+Show incoming texts in the message list before preparing their notifications.
+
+Missed or delayed message reports are still being investigated.

@@ -113,10 +113,11 @@ fun Context.getConversationsFromTelephony(
     pinnedThreadIds: Set<Long> = emptySet(),
     archivedThreadIds: Set<Long>? = null,
     mutedThreadIds: Set<Long> = emptySet(),
-    maxCount: Int = Int.MAX_VALUE
+    maxCount: Int = Int.MAX_VALUE,
+    enrichContacts: Boolean = true
 ): List<Conversation> {
     val excluded = archivedThreadIds ?: Prefs.get().getArchivedThreadIds()
-    val unreadCounts = getUnreadCountsByThread()
+    val unreadCounts = if (enrichContacts) getUnreadCountsByThread() else emptyMap()
     val uri = Uri.parse("content://mms-sms/conversations?simple=true")
     val projection = arrayOf(
         Telephony.Threads._ID,
@@ -168,10 +169,10 @@ fun Context.getConversationsFromTelephony(
 
                     val isGroup = phoneNumbers.size > 1
                     val primaryPhone = phoneNumbers.first()
-                    val contactInfo = contactHelper.resolve(primaryPhone)
+                    val contactInfo = if (enrichContacts) contactHelper.resolve(primaryPhone) else null
                     val title = when {
                         isGroup -> phoneNumbers.joinToString(", ") {
-                            contactHelper.getDisplayName(it)
+                            if (enrichContacts) contactHelper.getDisplayName(it) else it
                         }
                         contactInfo != null -> contactInfo.displayName
                         else -> primaryPhone
@@ -191,7 +192,7 @@ fun Context.getConversationsFromTelephony(
                             archived = threadId in excluded,
                             muted = threadId in mutedThreadIds,
                             participants = phoneNumbers.joinToString(","),
-                            unreadCount = unreadCounts[threadId] ?: 0
+                            unreadCount = unreadCounts[threadId] ?: if (read) 0 else 1
                         )
                     )
                 }

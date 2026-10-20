@@ -64,8 +64,10 @@ class MainActivity : BaseActivity() {
     /** Debounce job for RefreshConversations events — coalesces bursts of SMS into one reload. */
     private var refreshDebounceJob: Job? = null
 
-    /** Active load job for conversations; cancelled when a newer load starts. */
+    /** Coalesce provider updates instead of repeatedly abandoning blocking queries. */
     private var loadConversationsJob: Job? = null
+    private var conversationRefreshPending = false
+    private var conversationLoadGeneration = 0L
 
     /** Thread to focus after list refresh (used when returning from a conversation). */
     private var pendingFocusThreadId: Long? = null
@@ -308,6 +310,12 @@ class MainActivity : BaseActivity() {
 
     private fun loadConversations(forceRefresh: Boolean = false) {
         if (!hasRequiredPermissions()) return
+        if (loadConversationsJob?.isActive == true) {
+            conversationRefreshPending = true
+            return
+        }
+        conversationRefreshPending = false
+        val loadGeneration = ++conversationLoadGeneration
 
         var showedCached = false
         if (!forceRefresh) {
@@ -333,6 +341,20 @@ class MainActivity : BaseActivity() {
             try {
                 val pinnedIds = Prefs.get().getPinnedThreadIds()
                 val mutedIds = Prefs.get().getMutedThreadIds()
+                // Show provider rows immediately; contact enrichment must not block
+                // access to messages on a cold launch.
+                if (conversationsAdapter.currentList.isEmpty()) {
+                    val preview = withContext(Dispatchers.IO) {
+                        getConversationsFromTelephony(
+                            App.get().contactHelper, pinnedIds,
+                            mutedThreadIds = mutedIds, enrichContacts = false
+                        )
+                    }
+                    if (!isActive) return@launch
+                    displayConversations(preview)
+                    binding.loadingConversations.visibility = View.GONE
+                    binding.rvConversations.visibility = View.VISIBLE
+                }
                 val conversations = withContext(Dispatchers.IO) {
                     withTimeoutOrNull(CONVERSATION_LOAD_TIMEOUT_MS) {
                         getConversationsFromTelephony(
@@ -362,8 +384,14 @@ class MainActivity : BaseActivity() {
                     Snackbar.make(binding.root, R.string.conversations_load_failed, Snackbar.LENGTH_LONG).show()
                 }
             } finally {
-                binding.loadingConversations.visibility = View.GONE
-                if (!conversationLoadError) binding.rvConversations.visibility = View.VISIBLE
+                if (loadGeneration == conversationLoadGeneration) {
+                    binding.loadingConversations.visibility = View.GONE
+                    if (!conversationLoadError) binding.rvConversations.visibility = View.VISIBLE
+                    loadConversationsJob = null
+                    if (isActivityResumed && conversationRefreshPending) {
+                        scheduleProviderRefresh()
+                    }
+                }
             }
         }
     }

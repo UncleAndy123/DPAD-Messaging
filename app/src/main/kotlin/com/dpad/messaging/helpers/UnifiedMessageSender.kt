@@ -39,7 +39,7 @@ interface UnifiedMessageSender {
         threadId: Long,
         subscriptionId: Int = -1,
         scheduledMessageId: Long? = null
-    )
+    ): Boolean
 
     suspend fun sendMms(
         context: Context,
@@ -50,7 +50,7 @@ interface UnifiedMessageSender {
         threadId: Long,
         subscriptionId: Int = -1,
         scheduledMessageId: Long? = null
-    )
+    ): Boolean
 
     suspend fun sendGroupSmsFanout(
         context: Context,
@@ -123,11 +123,11 @@ object LegacyUnifiedMessageSender : UnifiedMessageSender {
         threadId: Long,
         subscriptionId: Int,
         scheduledMessageId: Long?
-    ) {
+    ): Boolean {
         // MDM outgoing filter
-        if (OutgoingFilter.checkAndRecord(context, listOf(phoneNumber), scheduledMessageId).isNotEmpty()) return
+        if (OutgoingFilter.checkAndRecord(context, listOf(phoneNumber), scheduledMessageId).isNotEmpty()) return false
 
-        SmsSender.send(
+        return SmsSender.send(
             context = context,
             phoneNumber = phoneNumber,
             body = body,
@@ -146,11 +146,11 @@ object LegacyUnifiedMessageSender : UnifiedMessageSender {
         threadId: Long,
         subscriptionId: Int,
         scheduledMessageId: Long?
-    ) {
+    ): Boolean {
         // MDM outgoing filter
-        if (OutgoingFilter.checkAndRecord(context, recipients, scheduledMessageId).isNotEmpty()) return
+        if (OutgoingFilter.checkAndRecord(context, recipients, scheduledMessageId).isNotEmpty()) return false
 
-        MmsSender.send(
+        return MmsSender.send(
             context = context,
             recipients = recipients,
             body = body,
@@ -226,9 +226,9 @@ object LibraryUnifiedMessageSender : UnifiedMessageSender {
         threadId: Long,
         subscriptionId: Int,
         scheduledMessageId: Long?
-    ) {
+    ): Boolean {
         // MDM outgoing filter
-        if (OutgoingFilter.checkAndRecord(context, listOf(phoneNumber), scheduledMessageId).isNotEmpty()) return
+        if (OutgoingFilter.checkAndRecord(context, listOf(phoneNumber), scheduledMessageId).isNotEmpty()) return false
 
         val settings = KlinkerSettings().apply {
             // Transaction.settings is shared with the MMS WAP-push receiver.
@@ -261,10 +261,11 @@ object LibraryUnifiedMessageSender : UnifiedMessageSender {
         try {
             Log.d(TAG, "LibraryUnifiedMessageSender: SMS via mmslib phone=$phoneNumber threadId=$threadId subId=$subscriptionId")
             transaction.sendNewMessage(message)
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "LibraryUnifiedMessageSender: SMS library send failed, falling back to legacy", e)
             // SmsSender.send() contains the authoritative MDM filter check.
-            SmsSender.send(
+            return SmsSender.send(
                 context = context,
                 phoneNumber = phoneNumber,
                 body = body,
@@ -284,12 +285,12 @@ object LibraryUnifiedMessageSender : UnifiedMessageSender {
         threadId: Long,
         subscriptionId: Int,
         scheduledMessageId: Long?
-    ) {
+    ): Boolean {
         // MDM outgoing filter
-        if (OutgoingFilter.checkAndRecord(context, recipients, scheduledMessageId).isNotEmpty()) return
+        if (OutgoingFilter.checkAndRecord(context, recipients, scheduledMessageId).isNotEmpty()) return false
 
         // Keep existing MMS path unchanged for phase 2.
-        MmsSender.send(
+        return MmsSender.send(
             context = context,
             recipients = recipients,
             body = body,

@@ -54,6 +54,9 @@ interface MessagesDao {
     @Query("DELETE FROM recycle_bin_messages WHERE id = :id")
     suspend fun removeFromRecycleBin(id: Long)
 
+    @Query("DELETE FROM recycle_bin_messages WHERE thread_id = :threadId")
+    suspend fun removeRecycleBinMessagesForThread(threadId: Long)
+
     @Query("DELETE FROM recycle_bin_messages")
     suspend fun emptyRecycleBin()
 }

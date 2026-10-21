@@ -60,6 +60,7 @@ class MainActivity : BaseActivity() {
 
     /** Debounce job for search filtering — cancels and reschedules on each keystroke */
     private var searchDebounceJob: Job? = null
+    private var currentSearchQuery = ""
 
     /** Debounce job for RefreshConversations events — coalesces bursts of SMS into one reload. */
     private var refreshDebounceJob: Job? = null
@@ -399,24 +400,38 @@ class MainActivity : BaseActivity() {
     private fun displayConversations(conversations: List<Conversation>) {
         conversationLoadError = false
         binding.conversationError.visibility = View.GONE
-        selectedThreadIds.retainAll(conversations.mapTo(HashSet()) { it.threadId })
-        conversationsAdapter.submitList(conversations) {
-            binding.tvEmpty.setText(R.string.no_conversations)
-            binding.tvEmpty.visibility = if (conversations.isEmpty()) View.VISIBLE else View.GONE
+        val visibleConversations = if (isSearchVisible && currentSearchQuery.length >= 2) {
+            val query = currentSearchQuery.lowercase()
+            conversations.filter {
+                it.title.lowercase().contains(query) ||
+                    it.snippet.lowercase().contains(query) ||
+                    it.phoneNumber.contains(query, ignoreCase = true)
+            }
+        } else conversations
+        selectedThreadIds.retainAll(visibleConversations.mapTo(HashSet()) { it.threadId })
+        conversationsAdapter.submitList(visibleConversations) {
+            binding.tvEmpty.setText(
+                if (isSearchVisible && currentSearchQuery.length >= 2) {
+                    R.string.no_search_results
+                } else {
+                    R.string.no_conversations
+                }
+            )
+            binding.tvEmpty.visibility = if (visibleConversations.isEmpty()) View.VISIBLE else View.GONE
 
             if (isSearchVisible) {
                 binding.etSearch.requestFocus()
                 return@submitList
             }
 
-            if (conversations.isEmpty()) {
+            if (visibleConversations.isEmpty()) {
                 binding.btnNewConversation.requestFocus()
                 pendingFocusThreadId = null
                 return@submitList
             }
 
             val targetPosition = pendingFocusThreadId
-                ?.let { threadId -> conversations.indexOfFirst { it.threadId == threadId } }
+                ?.let { threadId -> visibleConversations.indexOfFirst { it.threadId == threadId } }
                 ?.takeIf { it >= 0 }
 
             // If RecyclerView already has a focused child, the user navigated during the
@@ -442,6 +457,7 @@ class MainActivity : BaseActivity() {
     }
 
     private fun filterConversations(query: String) {
+        currentSearchQuery = query
         // Search only executes if query is at least 2 characters (or user pressed DPAD CENTER)
         if (query.length < 2) {
             // Show all conversations when search is cleared or too short
@@ -458,19 +474,7 @@ class MainActivity : BaseActivity() {
                     mutedThreadIds = mutedIds
                 )
             }.also { ConversationCache.put(it) }
-            val lower = query.lowercase()
-            val filtered = withContext(Dispatchers.Default) {
-                all.filter {
-                    it.title.lowercase().contains(lower) ||
-                    it.snippet.lowercase().contains(lower) ||
-                    it.phoneNumber.contains(lower)
-                }
-            }
-            conversationsAdapter.submitList(filtered)
-            binding.tvEmpty.setText(
-                if (filtered.isEmpty()) R.string.no_search_results else R.string.no_conversations
-            )
-            binding.tvEmpty.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
+            displayConversations(all)
         }
     }
 
@@ -700,6 +704,7 @@ class MainActivity : BaseActivity() {
         binding.searchBar.visibility = View.GONE
         binding.toolbar.visibility = View.VISIBLE
         binding.etSearch.text?.clear()
+        currentSearchQuery = ""
         loadConversations()
         binding.btnSearch.requestFocus()
     }
@@ -819,8 +824,8 @@ class MainActivity : BaseActivity() {
                 messagesDao.markThreadRead(conversation.threadId)
                 markThreadAsReadInTelephony(conversation.threadId)
             }
+            withContext(Dispatchers.Main) { loadConversations(forceRefresh = true) }
         }
-        loadConversations(forceRefresh = true)
     }
 
     private fun togglePin(conversation: Conversation) {
@@ -873,45 +878,33 @@ class MainActivity : BaseActivity() {
             .setPositiveButton(R.string.yes) { _, _ ->
                 lifecycleScope.launch(Dispatchers.IO) {
                     val threadId = conversation.threadId
-                    // If recycle bin is enabled, snapshot all SMS messages before deleting
                     if (Prefs.get().recycleBinEnabled) {
-                        val cursor = contentResolver.query(
-                            android.net.Uri.parse("content://sms"),
-                            arrayOf("_id", "address", "body", "date"),
-                            "thread_id = ?",
-                            arrayOf(threadId.toString()),
-                            "date ASC"
+                        // Keep the provider conversation intact (including MMS
+                        // parts) and hide it from the main list until restored or
+                        // permanently deleted from the recycle bin.
+                        App.get().database.messagesDao().insertRecycleBinMessage(
+                            com.dpad.messaging.models.RecycleBinMessage(
+                                id = com.dpad.messaging.models.RecycleBinMessage.conversationEntryId(threadId),
+                                threadId = threadId,
+                                isConversation = true,
+                                address = conversation.phoneNumber,
+                                senderName = conversation.title,
+                                body = conversation.snippet,
+                                date = conversation.date
+                            )
                         )
-                        cursor?.use { c ->
-                            val idCol   = c.getColumnIndexOrThrow("_id")
-                            val addrCol = c.getColumnIndexOrThrow("address")
-                            val bodyCol = c.getColumnIndexOrThrow("body")
-                            val dateCol = c.getColumnIndexOrThrow("date")
-                            while (c.moveToNext()) {
-                                val msgId  = c.getLong(idCol)
-                                val addr   = c.getString(addrCol) ?: ""
-                                val body   = c.getString(bodyCol) ?: ""
-                                val date   = c.getLong(dateCol)
-                                val name   = App.get().contactHelper.getDisplayName(addr)
-                                App.get().database.messagesDao().insertRecycleBinMessage(
-                                    com.dpad.messaging.models.RecycleBinMessage(
-                                        id         = msgId,
-                                        address    = addr,
-                                        senderName = name,
-                                        body       = body,
-                                        date       = date
-                                    )
-                                )
-                            }
+                        Prefs.get().setThreadArchived(threadId, true)
+                    } else {
+                        val uri = android.net.Uri.parse("content://mms-sms/conversations/$threadId")
+                        val deleted = runCatching { contentResolver.delete(uri, null, null) }
+                            .getOrDefault(0)
+                        if (deleted > 0) {
+                            Prefs.get().setThreadArchived(threadId, false)
+                            Prefs.get().setThreadPinned(threadId, false)
                         }
                     }
-                    // Delete the conversation from Telephony
-                    val uri = android.net.Uri.parse("content://mms-sms/conversations/$threadId")
-                    try { contentResolver.delete(uri, null, null) } catch (_: Exception) {}
-                    // Clean up any state prefs for this thread
-                    Prefs.get().setThreadArchived(threadId, false)
-                    Prefs.get().setThreadPinned(threadId, false)
-                    withContext(Dispatchers.Main) { loadConversations() }
+                    com.dpad.messaging.helpers.ConversationCache.invalidate()
+                    withContext(Dispatchers.Main) { loadConversations(forceRefresh = true) }
                 }
             }
             .setNegativeButton(R.string.no, null)

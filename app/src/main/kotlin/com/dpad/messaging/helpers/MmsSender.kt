@@ -89,8 +89,13 @@ object MmsSender {
         threadId: Long,
         subscriptionId: Int = -1,
         scheduledMessageId: Long? = null
-    ) {
-        if (recipients.isEmpty()) return
+    ): Boolean {
+        if (recipients.isEmpty()) {
+            if (scheduledMessageId != null) {
+                throw IllegalArgumentException("Scheduled MMS has no recipients")
+            }
+            return false
+        }
 
         val ownNumbers = context.getOwnPhoneNumbers()
         val filteredRecipients = recipients.filter { num ->
@@ -109,7 +114,7 @@ object MmsSender {
             )
         }
 
-        sendMmsInternal(
+        return sendMmsInternal(
             context = context,
             recipients = filteredRecipients,
             body = body,
@@ -128,7 +133,7 @@ object MmsSender {
         threadId: Long,
         subscriptionId: Int,
         scheduledMessageId: Long?
-    ) {
+    ): Boolean {
         val parts = ArrayList<MMSPart>(attachmentUris.size)
         var hasImage = false
 
@@ -180,7 +185,12 @@ object MmsSender {
         )
         if (messageUri == null) {
             Log.e(TAG, "MmsSender: send produced no persisted message; delivery not attempted")
+            if (scheduledMessageId != null) {
+                throw IllegalStateException("Scheduled MMS could not be handed to the platform")
+            }
+            return false
         }
+        return true
     }
 
     private fun readAttachment(context: Context, uri: Uri): ByteArray? {

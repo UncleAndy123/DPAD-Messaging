@@ -15,6 +15,7 @@ import com.dpad.messaging.helpers.SmsWhitelistManager
 import com.dpad.messaging.helpers.AppCoroutineScopes
 import com.dpad.messaging.helpers.NotificationHelper
 import com.dpad.messaging.helpers.PhoneNumberMatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 
@@ -125,7 +126,14 @@ class SmsReceiver : BroadcastReceiver() {
         Log.d("DPAD_MSG", "SmsReceiver.processMessage() address=$address body='${body.take(40)}'")
 
         // ── MDM hard-filter — must run first, before any thread/insert side effects ──
-        val filterResult = SmsWhitelistManager.check(context, address)
+        val filterResult = try {
+            SmsWhitelistManager.check(context, address)
+        } catch (e: Exception) {
+            // Keep the policy fail-closed, but make an exceptional drop visible
+            // in release logs instead of silently losing the delivery broadcast.
+            Log.e("DPAD_MSG", "SmsReceiver: MDM sender check failed; dropping '$address'", e)
+            return
+        }
         if (!filterResult.allowed) {
             // Always-on (not debug-gated) so missing-SMS reports can be diagnosed
             // from a release-build logcat.
@@ -165,19 +173,32 @@ class SmsReceiver : BroadcastReceiver() {
         EventBus.getDefault().post(RefreshMessages(threadId))
 
         // ── Local soft-filter (upstream blocklist + keywords) — suppress notification only ──
-        val keywords = App.get().database.blockedKeywordsDao().getAll()
-        val blockedNumbers = App.get().database.blockedNumbersDao().getAll()
-        val isBlockedByNumber = blockedNumbers.any { bn ->
-            PhoneNumberMatcher.equivalent(bn.number, address)
+        val isBlocked = try {
+            val keywords = App.get().database.blockedKeywordsDao().getAll()
+            val blockedNumbers = App.get().database.blockedNumbersDao().getAll()
+            blockedNumbers.any { bn -> PhoneNumberMatcher.equivalent(bn.number, address) } ||
+                keywords.any { kw -> body.contains(kw.keyword, ignoreCase = true) }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (e: Exception) {
+            // A local filter database problem must not silently suppress a new
+            // message alert; only a confirmed match should block notification.
+            Log.e("DPAD_MSG", "SmsReceiver: could not check local notification filters", e)
+            false
         }
-        val isBlockedByKeyword = keywords.any { kw ->
-            body.contains(kw.keyword, ignoreCase = true)
-        }
-        val isBlocked = isBlockedByNumber || isBlockedByKeyword
 
         if (!isBlocked) {
-            val senderName = App.get().contactHelper.getDisplayName(address)
-            NotificationHelper.showIncomingNotification(context, threadId, senderName, address, body)
+            val senderName = try {
+                App.get().contactHelper.getDisplayName(address)
+            } catch (e: Exception) {
+                Log.w("DPAD_MSG", "SmsReceiver: contact lookup failed for '$address'", e)
+                address
+            }
+            try {
+                NotificationHelper.showIncomingNotification(context, threadId, senderName, address, body)
+            } catch (e: Exception) {
+                Log.e("DPAD_MSG", "SmsReceiver: could not post incoming notification", e)
+            }
         }
 
     }

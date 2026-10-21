@@ -1,6 +1,7 @@
 package com.dpad.messaging.adapters
 
 import android.graphics.Typeface
+import android.provider.Telephony
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -26,7 +27,14 @@ data class RecycledItem(
     val senderName: String,
     val phoneNumber: String,
     val body: String,
-    val date: Long
+    val date: Long,
+    val providerId: Long = 0L,
+    val threadId: Long = -1L,
+    val isMms: Boolean = false,
+    val isConversation: Boolean = false,
+    val messageType: Int = Telephony.Sms.MESSAGE_TYPE_INBOX,
+    val wasRead: Boolean = true,
+    val participantsJson: String = "[]"
 )
 
 /**
@@ -55,7 +63,6 @@ class RecycleBinAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(item: RecycledItem) {
-            val accent = ThemeManager.accentColor(binding.root.context)
             val tint   = ThemeManager.focusAwareTint(binding.root.context)
 
             binding.tvName.text = item.senderName

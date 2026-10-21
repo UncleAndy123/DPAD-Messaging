@@ -45,13 +45,13 @@ object SmsSender {
         threadId: Long,
         subscriptionId: Int = -1,
         scheduledMessageId: Long? = null
-    ) {
+    ): Boolean {
         val destination = PhoneNumberUtils.stripSeparators(phoneNumber).ifBlank { phoneNumber }
 
         // ── MDM security boundary: reject blocked recipients before any I/O ──
         if (!SmsWhitelistManager.check(context, phoneNumber).allowed) {
             Log.w("DPAD_MSG", "SmsSender.send: blocked $phoneNumber by MDM policy")
-            return
+            return false
         }
 
         // 1. Insert TYPE_OUTBOX so the message appears in the thread immediately.
@@ -161,6 +161,7 @@ object SmsSender {
                     destination, null, parts, sentIntents, deliveredIntents
                 )
             }
+            return true
         } catch (e: Exception) {
             e.printStackTrace()
             // Immediately mark FAILED so the UI reflects reality.
@@ -174,6 +175,10 @@ object SmsSender {
                     reason = context.getString(R.string.sms_send_error_generic_failure)
                 )
             }
+            // Let the scheduled-send receiver update its Room queue entry too;
+            // otherwise a synchronous SmsManager failure leaves it scheduled.
+            if (scheduledMessageId != null) throw e
+            return false
         }
     }
 

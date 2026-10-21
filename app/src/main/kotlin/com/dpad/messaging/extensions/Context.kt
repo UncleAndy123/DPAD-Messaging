@@ -265,6 +265,14 @@ suspend fun Context.getMessagesForThread(
 
     val cappedLimit = if (limit <= 0) Int.MAX_VALUE else limit
     val messages = mutableListOf<Message>()
+    val recycledEntries = runCatching {
+        App.get().database.messagesDao().getRecycleBinMessages()
+            .filter { !it.isConversation && (it.threadId <= 0L || it.threadId == threadId) }
+    }.getOrDefault(emptyList())
+    val recycledSmsIds = recycledEntries.filterNot { it.isMms }
+        .mapTo(HashSet()) { it.providerId.takeIf { id -> id > 0L } ?: it.id }
+    val recycledMmsIds = recycledEntries.filter { it.isMms }
+        .mapTo(HashSet()) { it.providerId.takeIf { id -> id > 0L } ?: -it.id }
 
     // ── SMS ──────────────────────────────────────────────────────────────────
     val smsUri = Telephony.Sms.CONTENT_URI
@@ -321,6 +329,8 @@ suspend fun Context.getMessagesForThread(
             var loadedSms = 0
             while (cursor.moveToNext() && loadedSms < cappedLimit) {
                 if (idxId < 0 || idxType < 0) continue
+                val messageId = cursor.getLong(idxId)
+                if (messageId in recycledSmsIds) continue
 
                 val address = if (idxAddress >= 0) cursor.getString(idxAddress) ?: "" else ""
                 val type = cursor.getInt(idxType)
@@ -329,7 +339,7 @@ suspend fun Context.getMessagesForThread(
 
                 messages.add(
                     Message(
-                        id = cursor.getLong(idxId),
+                        id = messageId,
                         threadId = threadId,
                         body = if (idxBody >= 0) cursor.getString(idxBody) ?: "" else "",
                         type = type,
@@ -386,6 +396,7 @@ suspend fun Context.getMessagesForThread(
                 if (idxId < 0 || idxDate < 0 || idxMsgBox < 0) continue
 
                 val id      = cursor.getLong(idxId)
+                if (id in recycledMmsIds) continue
                 val date    = cursor.getLong(idxDate) * 1000L   // MMS date is in seconds
                 val msgBox  = cursor.getInt(idxMsgBox)
                 val read    = if (idxRead >= 0) cursor.getInt(idxRead) == 1 else true
@@ -487,6 +498,27 @@ fun Context.markThreadAsReadInTelephony(threadId: Long) {
             "${Telephony.Sms.THREAD_ID} = ? AND (${Telephony.Sms.READ} = 0 OR ${Telephony.Sms.SEEN} = 0)",
             arrayOf(threadId.toString())
         )
+        // Some device providers ignore bulk updates on the SMS collection URI.
+        // Retry any rows left unread through their individual message URIs.
+        contentResolver.query(
+            Telephony.Sms.CONTENT_URI,
+            arrayOf(Telephony.Sms._ID),
+            "${Telephony.Sms.THREAD_ID} = ? AND (${Telephony.Sms.READ} = 0 OR ${Telephony.Sms.SEEN} = 0)",
+            arrayOf(threadId.toString()),
+            null
+        )?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val messageId = cursor.getLong(0)
+                runCatching {
+                    contentResolver.update(
+                        android.content.ContentUris.withAppendedId(Telephony.Sms.CONTENT_URI, messageId),
+                        values,
+                        null,
+                        null
+                    )
+                }
+            }
+        }
         // Also mark MMS rows for this thread as read. The MmsProvider on some
         // devices (e.g. Sonim) silently ignores a single bulk update on the base
         // URI, so enumerate the rows and update each one individually too.

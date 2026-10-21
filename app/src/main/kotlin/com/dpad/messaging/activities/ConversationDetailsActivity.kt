@@ -336,6 +336,7 @@ class ConversationDetailsActivity : BaseActivity() {
 
     private fun showRenameDialog() {
         val input = android.widget.EditText(this).apply {
+            id = View.generateViewId()
             setText(currentTitle)
             setSelection(currentTitle.length)
             setTextColor(getColor(R.color.colorOnBackground))
@@ -360,7 +361,44 @@ class ConversationDetailsActivity : BaseActivity() {
             }
             .setNegativeButton(R.string.cancel, null)
             .create()
-        dialog.setOnShowListener { input.requestFocus() }
+        dialog.setOnShowListener {
+            val saveButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            val cancelButton = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE)
+            saveButton.isFocusable = true
+            saveButton.isFocusableInTouchMode = true
+            cancelButton.isFocusable = true
+            cancelButton.isFocusableInTouchMode = true
+            input.nextFocusDownId = saveButton.id
+            saveButton.nextFocusUpId = input.id
+            saveButton.nextFocusLeftId = cancelButton.id
+            cancelButton.nextFocusRightId = saveButton.id
+            cancelButton.nextFocusUpId = input.id
+            input.setOnKeyListener { _, keyCode, event ->
+                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    saveButton.requestFocus()
+                    true
+                } else if (
+                    event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT &&
+                    input.selectionEnd >= input.text.length
+                ) {
+                    saveButton.requestFocus()
+                    true
+                } else false
+            }
+            saveButton.setOnKeyListener { _, keyCode, event ->
+                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                    input.requestFocus()
+                    true
+                } else false
+            }
+            cancelButton.setOnKeyListener { _, keyCode, event ->
+                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                    input.requestFocus()
+                    true
+                } else false
+            }
+            input.requestFocus()
+        }
         dialog.show()
     }
 

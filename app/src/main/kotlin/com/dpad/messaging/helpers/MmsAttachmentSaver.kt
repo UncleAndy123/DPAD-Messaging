@@ -104,10 +104,27 @@ object MmsAttachmentSaver {
             "DPAD Messaging"
         )
         if (!directory.exists() && !directory.mkdirs()) return false
-        val outputFile = File(directory, displayName)
-        FileOutputStream(outputFile).use { output -> input.copyTo(output) }
-        MediaScannerConnection.scanFile(context, arrayOf(outputFile.absolutePath), arrayOf(mimeType), null)
-        return true
+        val outputFile = createUniqueFile(directory, displayName) ?: return false
+        return try {
+            FileOutputStream(outputFile).use { output -> input.copyTo(output) }
+            MediaScannerConnection.scanFile(context, arrayOf(outputFile.absolutePath), arrayOf(mimeType), null)
+            true
+        } catch (e: Exception) {
+            outputFile.delete()
+            false
+        }
+    }
+
+    private fun createUniqueFile(directory: File, displayName: String): File? {
+        val requested = File(directory, displayName)
+        val extension = requested.extension.takeIf { it.isNotBlank() }?.let { ".$it" }.orEmpty()
+        val baseName = requested.name.removeSuffix(extension).ifBlank { "attachment" }
+        for (suffix in 0..999) {
+            val candidateName = if (suffix == 0) "$baseName$extension" else "$baseName ($suffix)$extension"
+            val candidate = File(directory, candidateName)
+            if (candidate.createNewFile()) return candidate
+        }
+        return null
     }
 
     private fun timestamp(): String =

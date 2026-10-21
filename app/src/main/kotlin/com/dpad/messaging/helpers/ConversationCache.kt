@@ -20,4 +20,9 @@ object ConversationCache {
     fun put(conversations: List<Conversation>) {
         cached = conversations
     }
+
+    @Synchronized
+    fun invalidate() {
+        cached = null
+    }
 }

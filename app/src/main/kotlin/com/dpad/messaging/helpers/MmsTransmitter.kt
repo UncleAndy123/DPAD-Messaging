@@ -15,7 +15,6 @@ import com.android.mms.dom.smil.parser.SmilXmlSerializer
 import com.google.android.mms.ContentType
 import com.google.android.mms.InvalidHeaderValueException
 import com.google.android.mms.MMSPart
-import com.google.android.mms.MmsException
 import com.google.android.mms.pdu_alt.CharacterSets
 import com.google.android.mms.pdu_alt.EncodedStringValue
 import com.google.android.mms.pdu_alt.GenericPdu
@@ -31,7 +30,6 @@ import com.klinker.android.send_message.SmsManagerFactory
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
-import java.io.IOException
 import java.util.UUID
 
 /**
@@ -140,8 +138,9 @@ object MmsTransmitter {
         // what was written to the provider.
         val persistedPdu: GenericPdu = try {
             persister.load(messageUri)
-        } catch (e: MmsException) {
+        } catch (e: Exception) {
             Log.e(TAG, "MmsTransmitter: unable to reload persisted PDU", e)
+            markMessageFailed(context, messageUri)
             return null
         }
 
@@ -155,31 +154,55 @@ object MmsTransmitter {
 
         try {
             FileOutputStream(pduFile).use { it.write(PduComposer(context, persistedPdu).make()) }
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             Log.e(TAG, "MmsTransmitter: unable to write PDU file", e)
+            markMessageFailed(context, messageUri)
+            runCatching { pduFile.delete() }
             return null
         }
 
-        val pendingIntent = buildSentPendingIntent(context, sentIntent, messageUri, messageId, pduFile)
+        try {
+            val pendingIntent = buildSentPendingIntent(context, sentIntent, messageUri, messageId, pduFile)
 
-        val configOverrides = Bundle().apply {
-            putBoolean(SmsManager.MMS_CONFIG_GROUP_MMS_ENABLED, groupMms)
+            val configOverrides = Bundle().apply {
+                putBoolean(SmsManager.MMS_CONFIG_GROUP_MMS_ENABLED, groupMms)
+            }
+            MmsHttpOverrides.applyForMms(context, resolvedSubId, configOverrides)
+
+            SmsManagerFactory.createSmsManager(resolvedSubId).sendMultimediaMessage(
+                context,
+                contentUri,
+                null,
+                configOverrides,
+                pendingIntent
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "MmsTransmitter: platform did not accept MMS for sending", e)
+            markMessageFailed(context, messageUri)
+            runCatching { pduFile.delete() }
+            return null
         }
-        MmsHttpOverrides.applyForMms(context, resolvedSubId, configOverrides)
-
-        SmsManagerFactory.createSmsManager(resolvedSubId).sendMultimediaMessage(
-            context,
-            contentUri,
-            null,
-            configOverrides,
-            pendingIntent
-        )
 
         Log.d(
             TAG,
             "MmsTransmitter: handed PDU to platform uri=$messageUri id=$messageId subId=$resolvedSubId file=$fileName"
         )
         return messageUri
+    }
+
+    private fun markMessageFailed(context: Context, messageUri: Uri) {
+        runCatching {
+            context.contentResolver.update(
+                messageUri,
+                ContentValues(1).apply {
+                    put(Telephony.Mms.MESSAGE_BOX, Telephony.Mms.MESSAGE_BOX_FAILED)
+                },
+                null,
+                null
+            )
+        }.onFailure { error ->
+            Log.e(TAG, "MmsTransmitter: could not mark failed MMS row $messageUri", error)
+        }
     }
 
     /**

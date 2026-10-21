@@ -19,7 +19,7 @@ import com.dpad.messaging.models.*
         BlockedKeyword::class,
         BlockedNumber::class
     ],
-    version = 6,
+    version = 8,
     exportSchema = true
 )
 abstract class MessagesDatabase : RoomDatabase() {
@@ -101,6 +101,82 @@ abstract class MessagesDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE recycle_bin_messages RENAME TO recycle_bin_messages_v6")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `recycle_bin_messages` (
+                        `id` INTEGER NOT NULL,
+                        `provider_id` INTEGER NOT NULL,
+                        `thread_id` INTEGER NOT NULL,
+                        `is_mms` INTEGER NOT NULL,
+                        `is_conversation` INTEGER NOT NULL,
+                        `message_type` INTEGER NOT NULL,
+                        `was_read` INTEGER NOT NULL,
+                        `address` TEXT NOT NULL,
+                        `sender_name` TEXT NOT NULL,
+                        `body` TEXT NOT NULL,
+                        `date` INTEGER NOT NULL,
+                        `deleted_ts` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO `recycle_bin_messages` (
+                        `id`, `provider_id`, `thread_id`, `is_mms`, `is_conversation`,
+                        `message_type`, `was_read`, `address`, `sender_name`, `body`, `date`, `deleted_ts`
+                    )
+                    SELECT `id`, 0, -1, 0, 0, 1, 1, `address`, `sender_name`, `body`, `date`, `deleted_ts`
+                    FROM `recycle_bin_messages_v6`
+                    """.trimIndent()
+                )
+                db.execSQL("DROP TABLE `recycle_bin_messages_v6`")
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE recycle_bin_messages RENAME TO recycle_bin_messages_v7")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `recycle_bin_messages` (
+                        `id` INTEGER NOT NULL,
+                        `provider_id` INTEGER NOT NULL,
+                        `thread_id` INTEGER NOT NULL,
+                        `is_mms` INTEGER NOT NULL,
+                        `is_conversation` INTEGER NOT NULL,
+                        `message_type` INTEGER NOT NULL,
+                        `was_read` INTEGER NOT NULL,
+                        `participants_json` TEXT NOT NULL,
+                        `address` TEXT NOT NULL,
+                        `sender_name` TEXT NOT NULL,
+                        `body` TEXT NOT NULL,
+                        `date` INTEGER NOT NULL,
+                        `deleted_ts` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO `recycle_bin_messages` (
+                        `id`, `provider_id`, `thread_id`, `is_mms`, `is_conversation`,
+                        `message_type`, `was_read`, `participants_json`, `address`,
+                        `sender_name`, `body`, `date`, `deleted_ts`
+                    )
+                    SELECT `id`, `provider_id`, `thread_id`, `is_mms`, `is_conversation`,
+                        `message_type`, `was_read`, '[]', `address`, `sender_name`,
+                        `body`, `date`, `deleted_ts`
+                    FROM `recycle_bin_messages_v7`
+                    """.trimIndent()
+                )
+                db.execSQL("DROP TABLE `recycle_bin_messages_v7`")
+            }
+        }
+
         @Volatile
         private var instance: MessagesDatabase? = null
 
@@ -121,6 +197,8 @@ abstract class MessagesDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_3_4)
                 .addMigrations(MIGRATION_4_5)
                 .addMigrations(MIGRATION_5_6)
+                .addMigrations(MIGRATION_6_7)
+                .addMigrations(MIGRATION_7_8)
                 .build()
         }
     }

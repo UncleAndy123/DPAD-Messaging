@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.ContactsContract
 import android.provider.ContactsContract.CommonDataKinds.Phone
+import android.util.Log
 import android.util.LruCache
 
 /**
@@ -15,6 +16,11 @@ class ContactHelper(private val context: Context) {
     data class ContactInfo(
         val displayName: String,
         val photoUri: String = ""
+    )
+
+    private data class ContactQueryResult(
+        val contact: ContactInfo?,
+        val succeeded: Boolean
     )
 
     private val cache = LruCache<String, ContactInfo>(256)
@@ -42,14 +48,34 @@ class ContactHelper(private val context: Context) {
         // leading '+' when matching synced E.164 numbers. The digit-only
         // form remains a fallback for providers that normalize numbers.
         val lookupNumbers = listOf(phoneNumber.trim(), cacheKey).distinct()
-        val result = lookupNumbers.firstNotNullOfOrNull { number ->
-            queryPhoneLookup(number, projection) ?: queryPhoneFilter(number, projection)
+        var providerResponded = false
+        var result: ContactInfo? = null
+        for (number in lookupNumbers) {
+            val lookupResult = queryPhoneLookup(number, projection)
+            providerResponded = providerResponded || lookupResult.succeeded
+            if (lookupResult.contact != null) {
+                result = lookupResult.contact
+                break
+            }
+
+            val phoneResult = queryPhoneFilter(number, projection)
+            providerResponded = providerResponded || phoneResult.succeeded
+            if (phoneResult.contact != null) {
+                result = phoneResult.contact
+                break
+            }
         }
-        if (result != null) cache.put(cacheKey, result) else misses.put(cacheKey, true)
+        if (result != null) {
+            cache.put(cacheKey, result)
+        } else if (providerResponded) {
+            // Cache only a confirmed no-match. If the provider failed, allow a
+            // later conversation refresh to retry instead of pinning numbers.
+            misses.put(cacheKey, true)
+        }
         return result
     }
 
-    private fun queryPhoneLookup(number: String, projection: Array<String>): ContactInfo? {
+    private fun queryPhoneLookup(number: String, projection: Array<String>): ContactQueryResult {
         val uri = Uri.withAppendedPath(
             ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
             Uri.encode(number)
@@ -57,7 +83,7 @@ class ContactHelper(private val context: Context) {
         return queryContactInfo(uri, projection)
     }
 
-    private fun queryPhoneFilter(number: String, projection: Array<String>): ContactInfo? {
+    private fun queryPhoneFilter(number: String, projection: Array<String>): ContactQueryResult {
         val uri = Uri.withAppendedPath(
             Phone.CONTENT_FILTER_URI,
             Uri.encode(number)
@@ -65,14 +91,44 @@ class ContactHelper(private val context: Context) {
         return queryContactInfo(uri, projection)
     }
 
-    private fun queryContactInfo(uri: Uri, projection: Array<String>): ContactInfo? = try {
-        context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
-            if (!cursor.moveToFirst()) return@use null
-            val name = cursor.getString(0) ?: return@use null
-            ContactInfo(name, cursor.getString(1) ?: "")
+    private fun queryContactInfo(uri: Uri, projection: Array<String>): ContactQueryResult {
+        return try {
+            val cursor = context.contentResolver.query(uri, projection, null, null, null)
+                ?: return ContactQueryResult(null, succeeded = false)
+            cursor.use {
+                if (!it.moveToFirst()) return ContactQueryResult(null, succeeded = true)
+                val name = it.getString(0)
+                    ?.takeIf(String::isNotBlank)
+                    ?: return ContactQueryResult(null, succeeded = true)
+                ContactQueryResult(
+                    ContactInfo(name, it.getString(1) ?: ""),
+                    succeeded = true
+                )
+            }
+        } catch (e: Exception) {
+            // A few device contact providers reject the photo column on lookup
+            // URIs. Retry the name alone so names still resolve without photos.
+            Log.w("DPAD_MSG", "Contact lookup failed for URI $uri; retrying name only", e)
+            try {
+                val cursor = context.contentResolver.query(
+                    uri,
+                    arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME),
+                    null,
+                    null,
+                    null
+                ) ?: return ContactQueryResult(null, succeeded = false)
+                cursor.use {
+                    if (!it.moveToFirst()) return ContactQueryResult(null, succeeded = true)
+                    val name = it.getString(0)
+                        ?.takeIf(String::isNotBlank)
+                        ?: return ContactQueryResult(null, succeeded = true)
+                    ContactQueryResult(ContactInfo(name), succeeded = true)
+                }
+            } catch (fallbackException: Exception) {
+                Log.w("DPAD_MSG", "Name-only contact lookup failed for URI $uri", fallbackException)
+                ContactQueryResult(null, succeeded = false)
+            }
         }
-    } catch (_: Exception) {
-        null
     }
 
     fun clearCache() {

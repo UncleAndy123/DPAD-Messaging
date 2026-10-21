@@ -5,7 +5,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.provider.Telephony
 import androidx.core.app.NotificationCompat
 import com.dpad.messaging.App
 import com.dpad.messaging.R
@@ -64,7 +63,7 @@ class ScheduledMessageReceiver : BroadcastReceiver() {
                             throw IllegalStateException("Scheduled MMS attachment exceeds size policy")
                         }
 
-                        MessageSenders.unified.sendMms(
+                        val dispatchStarted = MessageSenders.unified.sendMms(
                             context = context,
                             recipients = recipients,
                             body = message.body,
@@ -74,8 +73,11 @@ class ScheduledMessageReceiver : BroadcastReceiver() {
                             subscriptionId = message.subscriptionId,
                             scheduledMessageId = message.id
                         )
+                        if (!dispatchStarted) {
+                            throw IllegalStateException("Scheduled MMS was not handed to the platform")
+                        }
                     } else {
-                        MessageSenders.unified.sendSms(
+                        val dispatchStarted = MessageSenders.unified.sendSms(
                             context = context,
                             phoneNumber = message.address,
                             body = message.body,
@@ -83,6 +85,9 @@ class ScheduledMessageReceiver : BroadcastReceiver() {
                             subscriptionId = message.subscriptionId,
                             scheduledMessageId = message.id
                         )
+                        if (!dispatchStarted) {
+                            throw IllegalStateException("Scheduled SMS was not handed to the platform")
+                        }
                     }
                 }.onSuccess {
                     // Final success/failure is handled by SmsStatusSentReceiver / MmsSentReceiver.
@@ -95,21 +100,6 @@ class ScheduledMessageReceiver : BroadcastReceiver() {
                             scheduledDate = null
                         )
                     )
-                    val telephonyType = if (message.isMms) {
-                        Uri.parse("content://mms/$messageId") to "msg_box"
-                    } else {
-                        Uri.parse("content://sms/$messageId") to Telephony.Sms.TYPE
-                    }
-                    runCatching {
-                        val cv = android.content.ContentValues().apply {
-                            if (message.isMms) {
-                                put(telephonyType.second, 5)
-                            } else {
-                                put(telephonyType.second, Telephony.Sms.MESSAGE_TYPE_FAILED)
-                            }
-                        }
-                        context.contentResolver.update(telephonyType.first, cv, null, null)
-                    }
                     showScheduledSendFailureNotification(context, message.threadId)
                 }
 

@@ -42,10 +42,12 @@ import com.dpad.messaging.BuildConfig
 import com.dpad.messaging.R
 import com.dpad.messaging.adapters.ThreadAdapter
 import com.dpad.messaging.databinding.ActivityThreadBinding
+import com.dpad.messaging.events.RefreshConversations
 import com.dpad.messaging.events.RefreshMessages
 import com.dpad.messaging.extensions.getMessagesForThread
 import com.dpad.messaging.extensions.markThreadAsReadInTelephony
 import com.dpad.messaging.helpers.AttachmentPolicy
+import com.dpad.messaging.helpers.ConversationCache
 import com.dpad.messaging.helpers.MessageCache
 import com.dpad.messaging.helpers.MessageSenders
 import com.dpad.messaging.helpers.MmsAttachmentSaver
@@ -1493,11 +1495,18 @@ class ThreadActivity : BaseActivity() {
     private fun markThreadRead() {
         if (threadId <= 0L) return
 
-        NotificationHelper.cancelNotification(this, NotificationHelper.threadNotificationId(threadId))
+        // The main screen can resume before provider updates complete. Force it
+        // to reload instead of immediately showing a stale unread count from cache.
+        ConversationCache.invalidate()
         lifecycleScope.launch(Dispatchers.IO) {
             App.get().database.messagesDao().markThreadRead(threadId)
             App.get().database.conversationsDao().markAsRead(threadId)
             markThreadAsReadInTelephony(threadId)
+            NotificationHelper.cancelNotification(
+                this@ThreadActivity,
+                NotificationHelper.threadNotificationId(threadId)
+            )
+            EventBus.getDefault().post(RefreshConversations())
         }
     }
 
@@ -1635,7 +1644,7 @@ class ThreadActivity : BaseActivity() {
                             subscriptionId = selectedSubId
                         )
                     } else {
-                        MessageSenders.unified.sendMms(
+                        val dispatchStarted = MessageSenders.unified.sendMms(
                             context        = this@ThreadActivity,
                             recipients     = participants,
                             body           = body,
@@ -1644,6 +1653,7 @@ class ThreadActivity : BaseActivity() {
                             threadId       = threadId,
                             subscriptionId = selectedSubId
                         )
+                        if (!dispatchStarted) showSendNotStartedFeedback()
                     }
                 }
                 SendingMode.MMS_SINGLE -> {
@@ -1659,7 +1669,7 @@ class ThreadActivity : BaseActivity() {
                             subscriptionId = selectedSubId
                         )
                     } else {
-                        MessageSenders.unified.sendMms(
+                        val dispatchStarted = MessageSenders.unified.sendMms(
                             context        = this@ThreadActivity,
                             recipients     = listOf(phoneNumber),
                             body           = body,
@@ -1668,6 +1678,7 @@ class ThreadActivity : BaseActivity() {
                             threadId       = threadId,
                             subscriptionId = selectedSubId
                         )
+                        if (!dispatchStarted) showSendNotStartedFeedback()
                     }
                 }
                 SendingMode.SMS_FANOUT_GROUP -> {
@@ -1708,13 +1719,14 @@ class ThreadActivity : BaseActivity() {
                             subscriptionId = selectedSubId
                         )
                     } else {
-                        MessageSenders.unified.sendSms(
+                        val dispatchStarted = MessageSenders.unified.sendSms(
                             context        = this@ThreadActivity,
                             phoneNumber    = phoneNumber,
                             body           = body,
                             threadId       = threadId,
                             subscriptionId = selectedSubId
                         )
+                        if (!dispatchStarted) showSendNotStartedFeedback()
                     }
                 }
             }
@@ -1724,6 +1736,16 @@ class ThreadActivity : BaseActivity() {
             }
             scrollToBottomAfterSend = true
             withContext(Dispatchers.Main) { loadMessages() }
+        }
+    }
+
+    private suspend fun showSendNotStartedFeedback() {
+        withContext(Dispatchers.Main) {
+            android.widget.Toast.makeText(
+                this@ThreadActivity,
+                R.string.error_sending_message,
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -1900,19 +1922,55 @@ class ThreadActivity : BaseActivity() {
             }
 
             if (Prefs.get().recycleBinEnabled) {
-                App.get().database.messagesDao()
-                    .insertRecycleBinMessage(RecycleBinMessage(id = message.id))
-            } else {
-                // Hard-delete directly from the Telephony SMS Content Provider.
-                try {
-                    contentResolver.delete(
-                        ContentUris.withAppendedId(Telephony.Sms.CONTENT_URI, message.id),
-                        null, null
-                    )
-                } catch (e: Exception) {
-                    e.printStackTrace()
+                val entryId = if (message.isMms) {
+                    RecycleBinMessage.mmsEntryId(message.id)
+                } else {
+                    RecycleBinMessage.smsEntryId(message.id)
                 }
+                App.get().database.messagesDao().insertRecycleBinMessage(
+                    RecycleBinMessage(
+                        id = entryId,
+                        providerId = message.id,
+                        threadId = threadId,
+                        isMms = message.isMms,
+                        messageType = message.type,
+                        wasRead = message.read,
+                        participantsJson = JSONArray(participants).toString(),
+                        address = message.address,
+                        senderName = message.senderName,
+                        body = message.body,
+                        date = message.date
+                    )
+                )
+                val uri = if (message.isMms) Uri.parse("content://mms/${message.id}")
+                    else ContentUris.withAppendedId(Telephony.Sms.CONTENT_URI, message.id)
+                if (message.isMms) {
+                    // Retain MMS rows and their provider-owned parts so restore
+                    // can bring back the original attachments without copying.
+                    runCatching {
+                        contentResolver.update(
+                            uri,
+                            android.content.ContentValues().apply {
+                                put("read", 1)
+                                put("seen", 1)
+                            },
+                            null,
+                            null
+                        )
+                    }
+                } else {
+                    // SMS content is fully snapshotted in Room, so removing the
+                    // provider row also updates the conversation preview/date.
+                    runCatching { contentResolver.delete(uri, null, null) }
+                }
+            } else {
+                val uri = if (message.isMms) Uri.parse("content://mms/${message.id}")
+                    else ContentUris.withAppendedId(Telephony.Sms.CONTENT_URI, message.id)
+                runCatching { contentResolver.delete(uri, null, null) }
             }
+            MessageCache.invalidate(threadId)
+            ConversationCache.invalidate()
+            EventBus.getDefault().post(RefreshConversations())
             withContext(Dispatchers.Main) { loadMessages() }
         }
     }
@@ -1978,7 +2036,7 @@ class ThreadActivity : BaseActivity() {
                     runCatching { Uri.parse(raw) }.getOrNull()
                 }
 
-                MessageSenders.unified.sendMms(
+                val dispatchStarted = MessageSenders.unified.sendMms(
                     context        = this@ThreadActivity,
                     recipients     = recipients,
                     body           = message.body,
@@ -1987,6 +2045,16 @@ class ThreadActivity : BaseActivity() {
                     threadId       = threadId,
                     subscriptionId = message.subscriptionId
                 )
+                if (!dispatchStarted) {
+                    withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(
+                            this@ThreadActivity,
+                            R.string.error_sending_message,
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    return@launch
+                }
                 // Only now delete the stale FAILED MMS row (new one already in provider)
                 try {
                     contentResolver.delete(
@@ -1998,13 +2066,23 @@ class ThreadActivity : BaseActivity() {
                 }
             } else {
                 // Re-send first — creates a fresh OUTBOX row in the CP
-                MessageSenders.unified.sendSms(
+                val dispatchStarted = MessageSenders.unified.sendSms(
                     context        = this@ThreadActivity,
                     phoneNumber    = phoneNumber,
                     body           = message.body,
                     threadId       = threadId,
                     subscriptionId = message.subscriptionId
                 )
+                if (!dispatchStarted) {
+                    withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(
+                            this@ThreadActivity,
+                            R.string.error_sending_message,
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    return@launch
+                }
                 // Only now delete the stale FAILED row (new one already in provider)
                 try {
                     contentResolver.delete(
@@ -2110,6 +2188,9 @@ class ThreadActivity : BaseActivity() {
     fun onRefreshMessages(event: RefreshMessages) {
         if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.onRefreshMessages() event.threadId=${event.threadId} local threadId=$threadId match=${event.threadId == threadId}")
         if (event.threadId != threadId) return
+        // Incoming messages delivered while this conversation is already open
+        // are visible to the user, so keep the provider and notification state read.
+        markThreadRead()
         // If the newest message is already visible (user is at the bottom, e.g.
         // awaiting a reply), scroll so the freshly-received message appears
         // instead of being left below the viewport.

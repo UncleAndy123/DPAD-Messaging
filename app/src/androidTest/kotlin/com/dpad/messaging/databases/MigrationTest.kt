@@ -5,6 +5,8 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 
 class MigrationTest {
 
@@ -28,5 +30,37 @@ class MigrationTest {
             true,
             MessagesDatabase.MIGRATION_5_6
         )
+    }
+
+    @Test
+    fun migrate6To8() {
+        val oldDb = helper.createDatabase(testDb, 6)
+        oldDb.execSQL(
+            """INSERT INTO recycle_bin_messages (id, address, sender_name, body, date, deleted_ts)
+                VALUES (42, '+15551234567', 'A contact', 'Saved text', 1234, 5678)""".trimIndent()
+        )
+        oldDb.close()
+
+        val migratedDb = helper.runMigrationsAndValidate(
+            testDb,
+            8,
+            true,
+            MessagesDatabase.MIGRATION_6_7,
+            MessagesDatabase.MIGRATION_7_8
+        )
+        migratedDb.query(
+            "SELECT provider_id, thread_id, is_mms, is_conversation, message_type, was_read, participants_json, body FROM recycle_bin_messages WHERE id = 42"
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0L, cursor.getLong(0))
+            assertEquals(-1L, cursor.getLong(1))
+            assertEquals(0, cursor.getInt(2))
+            assertEquals(0, cursor.getInt(3))
+            assertEquals(1, cursor.getInt(4))
+            assertEquals(1, cursor.getInt(5))
+            assertEquals("[]", cursor.getString(6))
+            assertEquals("Saved text", cursor.getString(7))
+        }
+        migratedDb.close()
     }
 }

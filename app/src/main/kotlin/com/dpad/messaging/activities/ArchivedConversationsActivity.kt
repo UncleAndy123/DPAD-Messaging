@@ -75,13 +75,19 @@ class ArchivedConversationsActivity : BaseActivity() {
                 return@launch
             }
             val archived = withContext(Dispatchers.IO) {
+                val recycledConversationIds = App.get().database.messagesDao()
+                    .getRecycleBinMessages()
+                    .asSequence()
+                    .filter { it.isConversation }
+                    .map { it.threadId }
+                    .toSet()
                 // Pass all archived IDs as "pinned" = none; pass archived IDs as archivedThreadIds=none
                 // so excluded filter is empty, but set includeOnly to the archived IDs.
                 getConversationsFromTelephony(
                     App.get().contactHelper,
                     pinnedThreadIds = Prefs.get().getPinnedThreadIds(),
                     archivedThreadIds = emptySet()   // don't exclude — we WANT archived ones
-                ).filter { it.threadId in archivedIds }
+                ).filter { it.threadId in archivedIds && it.threadId !in recycledConversationIds }
             }
             adapter.submitList(archived)
             binding.tvEmpty.visibility = if (archived.isEmpty()) View.VISIBLE else View.GONE
@@ -104,4 +110,3 @@ class ArchivedConversationsActivity : BaseActivity() {
         return super.onKeyDown(keyCode, event)
     }
 }
-

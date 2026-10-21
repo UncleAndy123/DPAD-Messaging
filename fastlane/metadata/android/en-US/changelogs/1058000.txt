@@ -1,0 +1,5 @@
+Read status now refreshes more reliably, and conversation search stays filtered when the list updates. Contact names can load on more devices, and D-pad users can reach Save when renaming a conversation.
+
+Retries keep the original failed message if a new send cannot start. Scheduled-send failures are recorded. Recycle Bin now preserves conversations and MMS attachments until permanent deletion, and restored SMS keeps its direction and read state.
+
+Attachment saves no longer overwrite same-named files, and preparing a new attachment share will not interrupt an existing one.

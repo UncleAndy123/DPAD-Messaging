@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.8
+
+- Read status and message counts refresh more reliably when you open or read a conversation, including when a new message arrives while it is open.
+- Contact names can still load when a device's Contacts app does not support photo lookups.
+- D-pad users can move from the conversation name field to Save when renaming.
+- Search stays filtered when the conversation list refreshes.
+- Failed retries no longer remove the original failed message unless a replacement send starts. Scheduled-send failures are recorded more reliably.
+- Recycle Bin keeps conversations and MMS attachments available until you permanently delete them. Restored SMS keeps its direction, thread and read state.
+- Saving attachments will not overwrite files with the same name, and sharing one attachment will not interrupt another share.
+
 ## 0.5.7
 
 - Conversations appear before contact names finish loading, so you can open messages sooner.

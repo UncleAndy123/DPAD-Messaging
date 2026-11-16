@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Reactions from iPhones and Google Messages (for example **Liked “See you at 5”** or **👍 to “See you at 5”**) now appear as a reaction on the original message instead of as a separate text. Hold OK on a message and choose **View reactions** to see who reacted. Turn this off under Settings → **Show Reactions on Messages** to see the original texts.
+
 ## 0.5.13
 
 - The photo attachment option is now simply called **Photo**. Audio remains a separate menu option.

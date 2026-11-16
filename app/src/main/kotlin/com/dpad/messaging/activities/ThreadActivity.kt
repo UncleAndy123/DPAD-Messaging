@@ -49,6 +49,7 @@ import com.dpad.messaging.extensions.markThreadAsReadInTelephony
 import com.dpad.messaging.helpers.AttachmentPolicy
 import com.dpad.messaging.helpers.ConversationCache
 import com.dpad.messaging.helpers.MessageCache
+import com.dpad.messaging.helpers.ReactionParser
 import com.dpad.messaging.helpers.MessageSenders
 import com.dpad.messaging.helpers.MmsAttachmentSaver
 import com.dpad.messaging.helpers.MmsAttachmentShare
@@ -63,6 +64,7 @@ import com.dpad.messaging.models.Message
 import com.dpad.messaging.models.MmsAttachment
 import com.dpad.messaging.models.MmsAttachmentJson
 import com.dpad.messaging.models.RecycleBinMessage
+import com.dpad.messaging.models.MessageReaction
 import com.dpad.messaging.models.ThreadItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -328,6 +330,10 @@ class ThreadActivity : BaseActivity() {
         EventBus.getDefault().register(this)
         applyAccent()
         markThreadRead()
+        // Pick up a change to the reactions setting made while this thread was open.
+        if (shownWithConvertReactions != null && shownWithConvertReactions != Prefs.get().convertReactions) {
+            loadMessages()
+        }
     }
 
     override fun onPause() {
@@ -1448,6 +1454,9 @@ class ThreadActivity : BaseActivity() {
 
     // ─── Data ───────────────────────────────────────────────────────────────
 
+    /** Reactions setting the list was last built with; null before the first load. */
+    private var shownWithConvertReactions: Boolean? = null
+
     private fun loadMessages() {
         if (BuildConfig.DEBUG) Log.d("DPAD_MSG", "ThreadActivity.loadMessages() called for threadId=$threadId")
 
@@ -1475,9 +1484,11 @@ class ThreadActivity : BaseActivity() {
 
     private fun displayMessages(messages: List<Message>, fromCache: Boolean, generation: Long = messageLoadGeneration) {
         displayMessagesJob?.cancel()
+        val convertReactions = Prefs.get().convertReactions
+        shownWithConvertReactions = convertReactions
         displayMessagesJob = lifecycleScope.launch {
             val items = withContext(Dispatchers.Default) {
-                ThreadItem.fromMessages(messages)
+                ThreadItem.fromMessages(messages, convertReactions)
             }
             if (generation != messageLoadGeneration) return@launch
             threadAdapter.submitList(items) {
@@ -1848,7 +1859,15 @@ class ThreadActivity : BaseActivity() {
         val deleteLabel = getString(
             if (Prefs.get().recycleBinEnabled) R.string.move_to_recycle_bin else R.string.delete
         )
+        val reactions = reactionsFor(message)
+        val myReaction = reactions.firstOrNull { it.isMine }
+        val canReact = message.isIncoming && (message.body.isNotBlank() || attachments.isNotEmpty())
         val options = buildList {
+            if (canReact) {
+                add(getString(R.string.react))
+                if (myReaction != null) add(getString(R.string.remove_reaction))
+            }
+            if (reactions.isNotEmpty()) add(getString(R.string.view_reactions))
             add(getString(R.string.copy_text))
             if (attachments.isNotEmpty()) {
                 add(getString(R.string.save_attachments))
@@ -1868,6 +1887,11 @@ class ThreadActivity : BaseActivity() {
         AlertDialog.Builder(this)
             .setItems(options) { _, which ->
                 when (options[which]) {
+                    getString(R.string.react) -> showReactionPicker(message, attachments)
+                    getString(R.string.remove_reaction) -> myReaction?.let {
+                        sendReaction(message, attachments, it.emoji, remove = true)
+                    }
+                    getString(R.string.view_reactions) -> showReactions(reactions)
                     getString(R.string.copy_text) -> copyMessageText(message.body)
                     getString(R.string.save_attachments) -> saveMmsAttachments(attachments)
                     getString(R.string.share_attachment) -> chooseAttachment(attachments, ::shareAttachment)
@@ -1879,6 +1903,122 @@ class ThreadActivity : BaseActivity() {
                 }
             }
             .create()
+            .show()
+    }
+
+    /** Emoji list for reacting to [message]; a plain list so it works with the D-pad. */
+    private fun showReactionPicker(message: Message, attachments: List<MmsAttachment>) {
+        val emoji = ReactionParser.PICKER_EMOJI.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.react)
+            .setItems(emoji) { _, which -> sendReaction(message, attachments, emoji[which], remove = false) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /**
+     * Sends a reaction as a normal text ("👍 to “…”"), the same fallback Google
+     * Messages uses over SMS/MMS, through the thread's usual sending route.
+     */
+    private fun sendReaction(
+        message: Message,
+        attachments: List<MmsAttachment>,
+        emoji: String,
+        remove: Boolean
+    ) {
+        val body = ReactionParser.compose(
+            emoji = emoji,
+            targetBody = message.body,
+            mimeType = attachments.firstOrNull()?.mimeType.orEmpty(),
+            remove = remove
+        )
+        if (phoneNumber.isBlank() && participants.isEmpty()) return
+        val recipients = buildList {
+            if (phoneNumber.isNotBlank()) add(phoneNumber)
+            addAll(participants)
+        }.distinct()
+        if (recipients.any { !SmsWhitelistManager.check(this, it).allowed }) {
+            android.widget.Toast.makeText(
+                this, getString(R.string.message_blocked_by_policy), android.widget.Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val mode = SendingRouter.decideSendingMode(
+                    hasAttachment = false,
+                    recipientCount = participants.size,
+                    sendGroupMessageMms = Prefs.get().sendGroupMessageMms
+                )
+                val started = when (mode) {
+                    SendingMode.MMS_GROUP -> MessageSenders.unified.sendMms(
+                        context = this@ThreadActivity,
+                        recipients = participants,
+                        body = body,
+                        attachmentUri = null,
+                        attachmentUris = emptyList(),
+                        threadId = threadId,
+                        subscriptionId = selectedSubId
+                    )
+                    SendingMode.MMS_SINGLE -> MessageSenders.unified.sendMms(
+                        context = this@ThreadActivity,
+                        recipients = listOf(phoneNumber),
+                        body = body,
+                        attachmentUri = null,
+                        attachmentUris = emptyList(),
+                        threadId = threadId,
+                        subscriptionId = selectedSubId
+                    )
+                    SendingMode.SMS_FANOUT_GROUP -> {
+                        MessageSenders.unified.sendGroupSmsFanout(
+                            context = this@ThreadActivity,
+                            recipients = participants,
+                            body = body,
+                            fallbackThreadId = threadId,
+                            subscriptionId = selectedSubId
+                        )
+                        true
+                    }
+                    SendingMode.SMS_SINGLE -> MessageSenders.unified.sendSms(
+                        context = this@ThreadActivity,
+                        phoneNumber = phoneNumber,
+                        body = body,
+                        threadId = threadId,
+                        subscriptionId = selectedSubId
+                    )
+                }
+                if (!started) showSendNotStartedFeedback()
+                withContext(Dispatchers.Main) { loadMessages() }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("DPAD_MSG", "ThreadActivity: could not send reaction", e)
+                showSendNotStartedFeedback()
+            }
+        }
+    }
+
+    /** Reactions currently shown on [message]'s bubble. */
+    private fun reactionsFor(message: Message): List<MessageReaction> {
+        for (item in threadAdapter.currentList) {
+            val (candidate, reactions) = when (item) {
+                is ThreadItem.SentMessage -> item.message to item.reactions
+                is ThreadItem.ReceivedMessage -> item.message to item.reactions
+                else -> continue
+            }
+            if (candidate.id == message.id && candidate.isMms == message.isMms) return reactions
+        }
+        return emptyList()
+    }
+
+    /** Lists who reacted with what; the list is navigable with the D-pad. */
+    private fun showReactions(reactions: List<MessageReaction>) {
+        val labels = reactions.map { ThreadAdapter.reactionLabel(this, it) }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.reactions_title)
+            .setItems(labels, null)
+            .setPositiveButton(android.R.string.ok, null)
             .show()
     }
 
